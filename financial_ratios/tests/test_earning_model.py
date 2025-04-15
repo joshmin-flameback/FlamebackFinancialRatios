@@ -31,7 +31,7 @@ from financial_ratios.earnings_model import (
 # Test Data Setup
 @pytest.fixture
 def time_index():
-    return pd.date_range(start='2020-01-01', periods=4, freq='Q')
+    return pd.date_range(start='2020-01-01', periods=4, freq='YE')
 
 
 @pytest.fixture

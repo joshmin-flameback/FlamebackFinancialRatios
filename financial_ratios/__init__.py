@@ -9,7 +9,7 @@ This module provides implementations of various financial ratios categorized int
 - Valuation Ratios
 """
 
-from .ratios_controller import RatiosController
+from .ratios_controller import Ratios
 from . import (
     earnings_model,
     financial_health_model,
@@ -20,7 +20,7 @@ from . import (
 __version__ = "0.1.0"
 
 __all__ = [
-    'RatiosController',
+    'Ratios',
     'earnings_model',
     'financial_health_model',
     'quality_model',

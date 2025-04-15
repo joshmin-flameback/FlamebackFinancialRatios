@@ -61,19 +61,24 @@ def get_intrinsic_compounding_rate(
         pd.Series: Time series of AICR values. Returns NaN for periods with zero
                   shareholder equity or net income, or insufficient data.
     """
-    # Handle zero values
+    # Handle zero values in inputs
     safe_net_income = net_income.replace(0, np.nan)
+    safe_total_assets = total_assets.replace(0, np.nan)
     
-    # Calculate shareholder equity and handle zero values
-    shareholder_equity = total_assets - total_liabilities
+    # Calculate shareholder equity
+    shareholder_equity = safe_total_assets - total_liabilities
     safe_shareholder_equity = shareholder_equity.replace(0, np.nan)
     
     # Calculate ROE and retention ratio
     return_on_equity = safe_net_income / safe_shareholder_equity
     dividend_payout_ratio = dividend_paid / safe_net_income
-    retention_ratio = 1 - dividend_payout_ratio.clip(lower=0, upper=1)  # Ensure ratio is between 0 and 1
+    retention_ratio = 1 - dividend_payout_ratio.clip(lower=0, upper=1)
     
-    return return_on_equity * retention_ratio
+    # Calculate final result
+    result = return_on_equity * retention_ratio
+    
+    # Create a new series to ensure NaN propagation
+    return pd.Series(result, index=net_income.index)
 
 # ----------------------
 # 2. Earnings Quality
@@ -100,17 +105,20 @@ def get_dips_in_profit_over_10yrs(
     """
     # Calculate profit and handle NaN values
     profit_series = revenue - total_expense
-    
-    # Ensure we have enough data
-    if len(profit_series) < 10:
-        return pd.Series(np.nan, index=profit_series.index)
-    
-    # Calculate year-over-year change
-    profit_change = profit_series.pct_change(periods=10) * 100
-    
-    # Count large dips and handle NaN values
-    large_dips = (profit_change < -10).fillna(False).astype(int)
-    return large_dips.cumsum()
+
+    # Initialize result series with NaN
+    result = pd.Series(np.nan, index=profit_series.index)
+
+    # Only calculate for periods with enough data
+    if len(profit_series) >= 10:
+        # Calculate year-over-year change
+        profit_change = profit_series.pct_change(periods=1) * 100
+        
+        # Count large dips and handle NaN values
+        large_dips = (profit_change < -10).fillna(False).astype(int)
+        result = large_dips.rolling(window=10, min_periods=10).sum()
+
+    return result
 
 def get_roic_band(
         invested_capital: pd.Series,
@@ -133,18 +141,20 @@ def get_roic_band(
                   Returns NaN for periods with zero invested capital or insufficient data.
 
     Raises:
-        ValueError: If less than 5 periods of data are available
+        ValueError: If less than 5 periods of data are available or if all values are zero/NaN
     """
     # Handle zero values
     safe_invested_capital = invested_capital.replace(0, np.nan)
     
     # Calculate ROIC
     roic = nopat / safe_invested_capital
+    
+    # Check for all NaN or zero values
+    if roic.isna().all() or (roic == 0).all() or len(roic.dropna()) < 5:
+        raise ValueError("Insufficient data: At least 5 periods of non-zero ROIC required.")
+        
     rolling_window = min(10, len(roic))
     
-    if rolling_window < 5:
-        raise ValueError("Insufficient data: At least 5 periods of ROIC required.")
-
     # Calculate rolling statistics with NaN handling
     mean_roic = roic.rolling(window=rolling_window, min_periods=5).mean()
     std_roic = roic.rolling(window=rolling_window, min_periods=5).std()
@@ -205,16 +215,20 @@ def get_negative_dips_in_fcf_over_10yrs(fcf: pd.Series) -> pd.Series:
         pd.Series: Time series of cumulative negative FCF change counts. Returns NaN for
                   periods with insufficient data (less than 10 years).
     """
-    # Ensure we have enough data
-    if len(fcf) < 10:
-        return pd.Series(np.nan, index=fcf.index)
-        
-    # Calculate year-over-year change
-    fcf_change = fcf.pct_change() * 100
+    # Initialize result series with NaN
+    result = pd.Series(np.nan, index=fcf.index)
     
-    # Count negative dips and handle NaN values
-    dips = (fcf_change < 0).fillna(False).astype(int)
-    return dips.rolling(window=10, min_periods=10).sum()
+    # Only calculate for periods with enough data
+    if len(fcf) >= 10:
+        # Calculate year-over-year change
+        fcf_change = fcf.pct_change(periods=1)
+        
+        # Count negative changes and ensure integer output
+        negative_changes = (fcf_change < 0).fillna(False).astype('int64')
+        rolling_sum = negative_changes.rolling(window=10, min_periods=10).sum()
+        result.iloc[9:] = rolling_sum.iloc[9:].fillna(0).astype('int64')
+    
+    return result
 
 def get_negative_fcf_years(fcf: pd.Series) -> pd.Series:
     """
@@ -230,13 +244,17 @@ def get_negative_fcf_years(fcf: pd.Series) -> pd.Series:
         pd.Series: Time series of cumulative negative FCF year counts. Returns NaN for
                   periods with insufficient data (less than 10 years).
     """
-    # Ensure we have enough data
-    if len(fcf) < 10:
-        return pd.Series(np.nan, index=fcf.index)
-        
-    # Count negative years and handle NaN values
-    negative_fcf_years = (fcf < 0).fillna(False).astype(int)
-    return negative_fcf_years.rolling(window=10, min_periods=10).sum()
+    # Initialize result series with NaN
+    result = pd.Series(np.nan, index=fcf.index)
+    
+    # Only calculate for periods with enough data
+    if len(fcf) >= 10:
+        # Count negative FCF years and ensure integer output
+        negative_years = (fcf < 0).fillna(False).astype('int64')
+        rolling_sum = negative_years.rolling(window=10, min_periods=10).sum()
+        result.iloc[9:] = rolling_sum.iloc[9:].fillna(0).astype('int64')
+    
+    return result
 
 def get_fcf_to_net_profit_band(
         fcf: pd.Series,

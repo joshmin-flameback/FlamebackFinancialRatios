@@ -191,7 +191,11 @@ def get_revenue_growth(revenue: pd.Series) -> pd.Series:
             return pd.Series(dtype=float)
 
         # Calculate growth rate
-        growth = (revenue - revenue.shift(1)) / revenue.shift(1).replace(0, np.nan)
+        prev_revenue = revenue.shift(1)
+        growth = (revenue - prev_revenue) / prev_revenue.abs()
+        
+        # Cap extreme growth values at 1000% (10x)
+        growth = growth.clip(-10, 10)
 
         # Handle invalid calculations
         growth = growth.replace([np.inf, -np.inf], np.nan)
@@ -335,8 +339,8 @@ def get_average_revenue_growth(revenue: pd.Series) -> pd.Series:
         # Calculate growth rates
         growth = get_revenue_growth(revenue)
 
-        # Calculate rolling average
-        avg_growth = growth.rolling(window=20, min_periods=20).mean()
+        # Calculate rolling average with more lenient min_periods
+        avg_growth = growth.rolling(window=20, min_periods=1).mean()
 
         # Handle invalid calculations
         avg_growth = avg_growth.replace([np.inf, -np.inf], np.nan)
@@ -498,11 +502,14 @@ def get_revenue_growth_vs_average_growth(revenue: pd.Series) -> pd.Series:
         current_growth = get_revenue_growth(revenue)
         avg_growth = get_average_revenue_growth(revenue)
 
-        # Calculate ratio
-        ratio = current_growth / avg_growth.replace(0, np.nan)
+        # Calculate ratio, handling negative averages
+        ratio = current_growth / avg_growth.abs().replace(0, np.nan)
+        
+        # If average growth is negative, flip the ratio sign
+        ratio = ratio * (avg_growth / avg_growth.abs()).fillna(1)
 
-        # Handle invalid calculations
-        ratio = ratio.replace([np.inf, -np.inf], np.nan)
+        # Handle invalid calculations and cap extreme values
+        ratio = ratio.replace([np.inf, -np.inf], np.nan).clip(-10, 10)
 
         return ratio
 

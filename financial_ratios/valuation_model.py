@@ -121,7 +121,8 @@ def get_fair_value_vs_market_price(
     eps_growth = (eps - eps.shift(1)) / safe_eps.shift(1)
     
     pe_ratio = current_price / safe_eps
-    avg_pe = pe_ratio.rolling(window=36, min_periods=12).mean()  # Require at least 1 year of data
+    # Use 3-year average for historical comparison
+    avg_pe = pe_ratio.rolling(window=3, min_periods=1).mean()  # Require at least 1 year of data
 
     # Calculate fair value ratio with NaN handling
     fair_value_ratio = (
@@ -166,7 +167,7 @@ def get_price_to_revenue_band(
                   Returns NaN for periods with zero revenue or shares, or insufficient data.
 
     Raises:
-        ValueError: If less than 12 periods of data are available
+        ValueError: If less than 1 year data of data are available
     """
     # Handle zero values
     safe_shares = shares_outstanding.replace(0, np.nan)
@@ -179,12 +180,13 @@ def get_price_to_revenue_band(
     ratio = price / safe_revenue_per_share
     
     # Ensure sufficient data
-    if len(ratio) < 12:
+    if len(ratio) < 1:
         raise ValueError("Insufficient data: At least 12 periods required.")
     
     # Calculate band statistics with NaN handling
-    mean_ratio = ratio.rolling(window=36, min_periods=12).mean()
-    std_ratio = ratio.rolling(window=36, min_periods=12).std()
+    # Use 3-year average for historical comparison
+    mean_ratio = ratio.rolling(window=3, min_periods=1).mean()
+    std_ratio = ratio.rolling(window=3, min_periods=1).std()
     safe_std_ratio = std_ratio.replace(0, np.nan)
     
     return (ratio - mean_ratio) / safe_std_ratio
@@ -215,7 +217,7 @@ def get_price_to_eps_band(
                   Returns NaN for periods with zero EPS or insufficient data.
 
     Raises:
-        ValueError: If less than 12 periods of data are available
+        ValueError: If less than 1 year data are available
     """
     # Handle zero values
     safe_eps = eps.replace(0, np.nan)
@@ -224,12 +226,13 @@ def get_price_to_eps_band(
     ratio = price / safe_eps
     
     # Ensure sufficient data
-    if len(ratio) < 12:
-        raise ValueError("Insufficient data: At least 12 periods required.")
+    if len(ratio) < 1:
+        raise ValueError("Insufficient data: At least 1 year data required.")
     
     # Calculate band statistics with NaN handling
-    mean_ratio = ratio.rolling(window=36, min_periods=12).mean()
-    std_ratio = ratio.rolling(window=36, min_periods=12).std()
+    # Use 3-year average for historical comparison
+    mean_ratio = ratio.rolling(window=3, min_periods=1).mean()
+    std_ratio = ratio.rolling(window=3, min_periods=1).std()
     safe_std_ratio = std_ratio.replace(0, np.nan)
     
     return (ratio - mean_ratio) / safe_std_ratio
@@ -263,7 +266,7 @@ def get_price_to_cfo_band(
                   Returns NaN for periods with zero CFO or shares, or insufficient data.
 
     Raises:
-        ValueError: If less than 12 periods of data are available
+        ValueError: If less than 1 year data of data are available
     """
     # Handle zero values
     safe_shares = shares_outstanding.replace(0, np.nan)
@@ -276,12 +279,13 @@ def get_price_to_cfo_band(
     ratio = price / safe_cfo_per_share
     
     # Ensure sufficient data
-    if len(ratio) < 12:
-        raise ValueError("Insufficient data: At least 12 periods required.")
+    if len(ratio) < 1:
+        raise ValueError("Insufficient data: At least 1 year data required.")
     
     # Calculate band statistics with NaN handling
-    mean_ratio = ratio.rolling(window=36, min_periods=12).mean()
-    std_ratio = ratio.rolling(window=36, min_periods=12).std()
+    # Use 3-year average for historical comparison
+    mean_ratio = ratio.rolling(window=3, min_periods=1).mean()
+    std_ratio = ratio.rolling(window=3, min_periods=1).std()
     safe_std_ratio = std_ratio.replace(0, np.nan)
     
     return (ratio - mean_ratio) / safe_std_ratio

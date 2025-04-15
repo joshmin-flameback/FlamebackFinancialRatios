@@ -12,7 +12,7 @@ from financial_ratios.financial_health_model import (
 # Test Data Setup
 @pytest.fixture
 def time_index():
-    return pd.date_range(start='2020-01-01', periods=4, freq='Q')
+    return pd.date_range(start='2020-01-01', periods=4, freq='QE')
 
 @pytest.fixture
 def sample_data(time_index):
@@ -32,7 +32,8 @@ def sample_data(time_index):
         'ebit': pd.Series([400, 450, 350, 375], index=time_index),
         'diluted_shares_outstanding': pd.Series([100, 100, 100, 100], index=time_index),
         'retained_earnings': pd.Series([800, 900, 700, 750], index=time_index),
-        'stock_price': pd.Series([20, 22, 18, 19], index=time_index)
+        'stock_price': pd.Series([20, 22, 18, 19], index=time_index),
+        'total_liabilities': pd.Series([400, 450, 350, 375], index=time_index)
     }
 
 def test_debt_to_equity_ratio(sample_data):
@@ -43,16 +44,16 @@ def test_debt_to_equity_ratio(sample_data):
     )
     
     # Normal case
-    assert result[0] == pytest.approx(0.5)  # 1000/2000
+    assert result.iloc[0] == pytest.approx(0.5)  # 1000/2000
     
     # Zero equity - should return NaN
-    assert pd.isna(result[1])
+    assert pd.isna(result.iloc[1])
     
     # Normal case
-    assert result[2] == pytest.approx(0.533333, rel=1e-5)  # 800/1500
+    assert result.iloc[2] == pytest.approx(0.533333, rel=1e-5)  # 800/1500
     
     # Negative equity - should still compute but indicates financial distress
-    assert result[3] == pytest.approx(-9.0)  # 900/-100
+    assert result.iloc[3] == pytest.approx(-9.0)  # 900/-100
 
 def test_interest_coverage_ratio(sample_data):
     """Test interest coverage ratio calculation including edge cases."""
@@ -62,14 +63,14 @@ def test_interest_coverage_ratio(sample_data):
     )
     
     # Normal case
-    assert result[0] == pytest.approx(5.0)  # 500/100
+    assert result.iloc[0] == pytest.approx(5.0)  # 500/100
     
     # Zero interest expense - should return NaN
-    assert pd.isna(result[1])
+    assert pd.isna(result.iloc[1])
     
     # Normal cases
-    assert result[2] == pytest.approx(5.0)  # 400/80
-    assert result[3] == pytest.approx(5.0)  # 450/90
+    assert result.iloc[2] == pytest.approx(5.0)  # 400/80
+    assert result.iloc[3] == pytest.approx(5.0)  # 450/90
 
 def test_current_ratio(sample_data):
     """Test current ratio calculation including edge cases."""
@@ -79,14 +80,14 @@ def test_current_ratio(sample_data):
     )
     
     # Normal case
-    assert result[0] == pytest.approx(2.0)  # 800/400
+    assert result.iloc[0] == pytest.approx(2.0)  # 800/400
     
     # Zero current liabilities - should return NaN
-    assert pd.isna(result[1])
+    assert pd.isna(result.iloc[1])
     
     # Normal cases
-    assert result[2] == pytest.approx(2.0)  # 700/350
-    assert result[3] == pytest.approx(2.0)  # 750/375
+    assert result.iloc[2] == pytest.approx(2.0)  # 700/350
+    assert result.iloc[3] == pytest.approx(2.0)  # 750/375
 
 def test_cash_conversion_cycle(sample_data):
     """Test cash conversion cycle calculation including edge cases."""
@@ -103,17 +104,17 @@ def test_cash_conversion_cycle(sample_data):
     expected_dso = (200 / 1000) * 365  # days sales outstanding
     expected_dpo = (150 / 600) * 365  # days payables outstanding
     expected_ccc = expected_dio + expected_dso - expected_dpo
-    assert result[0] == pytest.approx(expected_ccc)
+    assert result.iloc[0] == pytest.approx(expected_ccc)
     
     # Zero denominators - should return NaN
-    assert pd.isna(result[1])
+    assert pd.isna(result.iloc[1])
     
     # Normal cases for remaining periods
     expected_dio = (250 / 500) * 365
     expected_dso = (175 / 800) * 365
     expected_dpo = (125 / 500) * 365
     expected_ccc = expected_dio + expected_dso - expected_dpo
-    assert result[2] == pytest.approx(expected_ccc)
+    assert result.iloc[2] == pytest.approx(expected_ccc)
 
 def test_altman_z_score(sample_data):
     """Test Altman Z-Score calculation including edge cases."""
@@ -137,10 +138,10 @@ def test_altman_z_score(sample_data):
     x4 = 0.6 * ((20 * 100) / 400)
     x5 = 1.0 * (1000 / 3000)
     expected_z = x1 + x2 + x3 + x4 + x5
-    assert result[0] == pytest.approx(expected_z)
+    assert result.iloc[0] == pytest.approx(expected_z)
     
     # Zero denominators - should return NaN
-    assert pd.isna(result[1])
+    assert pd.isna(result.iloc[1])
     
     # Test remaining periods
     working_capital = 700 - 350
@@ -150,4 +151,4 @@ def test_altman_z_score(sample_data):
     x4 = 0.6 * ((18 * 100) / 350)
     x5 = 1.0 * (800 / 2500)
     expected_z = x1 + x2 + x3 + x4 + x5
-    assert result[2] == pytest.approx(expected_z)
+    assert result.iloc[2] == pytest.approx(expected_z)
