@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./assets/factorslab_logo.png" alt="Flameback Financial Ratios Logo" width="600px" />
+  <img src="./assets/factorslab.png" alt="Flameback Financial Ratios Logo" width="600px" />
 </div>
 
 # Flameback Financial Ratios
