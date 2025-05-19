@@ -2,7 +2,7 @@
 
 import pandas as pd
 
-from financial_ratios.utils.helpers import calculate_growth, handle_errors, calculate_average
+from financial_ratios.utils.helpers import calculate_growth, handle_errors, calculate_average, FrequencyType, freq
 from . import financial_health_model, earnings_model, quality_model, valuation_model
 
 
@@ -31,8 +31,8 @@ class Ratios:
                 - 'Total_Equity': Total equity values
                 - 'EBITDA': Earnings before interest, taxes, depreciation and amortization
                 - 'Interest_Expense': Interest expense values
-                - 'Current_Assets': Current assets values
-                - 'Current_Liabilities': Current liabilities values
+                - 'Current_Assets': Total Current Assets values
+                - 'Current_Liabilities': Total Current Liabilities values
                 etc...
             quarterly (bool, optional): Whether to use quarterly data. Defaults to False.
             rounding (int, optional): The number of decimals to round the results to. Defaults to 4.
@@ -109,7 +109,7 @@ class Ratios:
             - Long_Term_Debt, Short_Term_Debt, Total_Equity: For debt to equity ratio
             - EBITDA, Interest_Expense: For interest coverage ratio
             - Current_Assets, Current_Liabilities: For current ratio
-            - Inventory, Cost_Of_Goods_Sold, Accounts_Receivable, Revenue, Accounts_Payable: For cash conversion cycle
+            - Total Inventories, Cost_Of_Goods_Sold, Accounts_Receivable, Revenue, Accounts_Payable: For cash conversion cycle
             - Total_Assets, EBIT, Diluted_Shares_Outstanding, Total_Liabilities, Retained_Earnings, Stock_Price: For Altman Z-score
 
         Returns:
@@ -117,15 +117,15 @@ class Ratios:
         """
         if not days:
             days = 365 / 4 if self._quarterly else 365
-        
+
         # Calculate all financial health ratios
-        debt_equity = self.get_debt_to_equity_ratio(trailing=trailing)
-        interest_coverage = self.get_interest_coverage_ratio(trailing=trailing)
-        current_ratio = self.get_current_ratio(trailing=trailing)
-        cash_conversion = self.get_cash_conversion_cycle(trailing=trailing)
-        altman_z = self.get_altman_z_score(trailing=trailing)
+        debt_equity = self.get_debt_to_equity_ratio(freq=FrequencyType.FY)
+        interest_coverage = self.get_interest_coverage_ratio(freq=FrequencyType.TTM)
+        current_ratio = self.get_current_ratio(freq=FrequencyType.FY)
+        cash_conversion = self.get_cash_conversion_cycle(freq=FrequencyType.FY)
+        altman_z = self.get_altman_z_score(freq=FrequencyType.FY)
         self._financial_health_ratios = pd.concat([debt_equity, interest_coverage, current_ratio, cash_conversion, altman_z], axis=1)
-        
+
         # Process and return the results
         return self._process_ratio_result(self._financial_health_ratios, growth, lag, rounding)
 
@@ -136,6 +136,7 @@ class Ratios:
         growth: bool = False,
         lag: int | list[int] = 1,
         trailing: int | None = None,
+        freq: FrequencyType = None,
     ) -> pd.DataFrame:
         """
         Calculate the debt to equity ratio, which measures the proportion of
@@ -146,21 +147,39 @@ class Ratios:
             growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
             lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
             trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
 
         Returns:
             pd.DataFrame: Debt to equity ratio values.
         """
         # Get required series from financial data
-        total_debt = self._financial_data['Total_Debt']
-        total_equity = self._financial_data['Total_Equity']
+        total_debt = self._financial_data['Total Debt']
+        total_equity = self._financial_data['Total Equity']
 
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year (April-March) calculations
+                total_debt = total_debt.freq.FY
+                total_equity = total_equity.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                total_debt = total_debt.freq.TTM
+                total_equity = total_equity.freq.TTM
+        # Apply trailing window if specified (for backward compatibility)
         if trailing:
             total_debt = total_debt.rolling(trailing).mean()
             total_equity = total_equity.rolling(trailing).mean()
+        # Name based on frequency used
+        ratio_name = 'Debt to Equity'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
 
         # Calculate ratio and convert to DataFrame
         result = financial_health_model.get_debt_to_equity_ratio(total_debt, total_equity)
-        result_df = result.to_frame(name='Debt to Equity')
+        result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
     @handle_errors
@@ -170,6 +189,7 @@ class Ratios:
         growth: bool = False,
         lag: int | list[int] = 1,
         trailing: int | None = None,
+        freq: FrequencyType = None,
     ) -> pd.DataFrame:
         """
         Calculate the interest coverage ratio, which measures a company's
@@ -180,6 +200,7 @@ class Ratios:
             growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
             lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
             trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
 
         Returns:
             pd.DataFrame: Interest coverage ratio values.
@@ -187,14 +208,33 @@ class Ratios:
 
         # Get required series from financial data
         ebitda = self._financial_data['EBITDA']
-        interest_expense = self._financial_data['Interest_Expense']
+        interest_expense = self._financial_data['Interest Expense']
 
-        if trailing:
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                ebitda = ebitda.freq.FY
+                interest_expense = interest_expense.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                ebitda = ebitda.freq.TTM
+                interest_expense = interest_expense.freq.TTM
+        # Apply trailing window if specified (for backward compatibility)
+        elif trailing:
             ebitda = ebitda.rolling(trailing).sum()
             interest_expense = interest_expense.rolling(trailing).sum()
 
         result = financial_health_model.get_interest_coverage_ratio(ebitda, interest_expense)
-        result_df = result.to_frame(name='TTM Interest Coverage')
+        
+        # Name based on frequency used
+        ratio_name = 'Interest Coverage'
+        if freq == FrequencyType.TTM or trailing:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
     @handle_errors
@@ -204,30 +244,51 @@ class Ratios:
         growth: bool = False,
         lag: int | list[int] = 1,
         trailing: int | None = None,
+        freq: FrequencyType = None,
     ) -> pd.DataFrame:
         """
         Calculate the current ratio, which measures a company's ability to pay
-        its short-term liabilities with its current assets.
+        its short-term liabilities with its Total Current Assets.
 
         Args:
             rounding (int, optional): The number of decimals to round the results to. Defaults to 4.
             growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
             lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
             trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
 
         Returns:
             pd.DataFrame: Current ratio values.
         """
         # Get required series from financial data
-        current_assets = self._financial_data['Current_Assets']
-        current_liabilities = self._financial_data['Current_Liabilities']
+        current_assets = self._financial_data['Total Current Assets']
+        current_liabilities = self._financial_data['Total Current Liabilities']
 
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                current_assets = current_assets.freq.FY
+                current_liabilities = current_liabilities.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                current_assets = current_assets.freq.TTM
+                current_liabilities = current_liabilities.freq.TTM
+        # Apply trailing window if specified (for backward compatibility)
         if trailing:
             current_assets = current_assets.rolling(trailing).mean()
             current_liabilities = current_liabilities.rolling(trailing).mean()
 
         result = financial_health_model.get_current_ratio(current_assets, current_liabilities)
-        result_df = result.to_frame(name='Current Ratio')
+        
+        # Name based on frequency used
+        ratio_name = 'Current Ratio'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
     @handle_errors
@@ -238,6 +299,7 @@ class Ratios:
         lag: int | list[int] = 1,
         trailing: int | None = None,
         days: int | float | None = None,
+        freq: FrequencyType = None,
     ) -> pd.DataFrame:
         """
         Calculate the Cash Conversion Cycle, which measures how long it takes
@@ -248,6 +310,8 @@ class Ratios:
             growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
             lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
             trailing (int): Defines whether to select a trailing period.
+            days: Number of days in period for calculations.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
 
         Returns:
             pd.DataFrame: Cash conversion cycle values.
@@ -256,12 +320,29 @@ class Ratios:
             days = 365 / 4 if self._quarterly else 365
 
         # Get required series from financial data
-        inventory = self._financial_data['Inventory']
-        cogs = self._financial_data['Cost_Of_Goods_Sold']
-        accounts_receivable = self._financial_data['Accounts_Receivable']
+        inventory = self._financial_data['Total Inventories']
+        cogs = self._financial_data['Cost of Goods Sold']
+        accounts_receivable = self._financial_data['Accounts Receivable']
         revenue = self._financial_data['Revenue']
-        accounts_payable = self._financial_data['Accounts_Payable']
+        accounts_payable = self._financial_data['Accounts Payable']
 
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                inventory = inventory.freq.FY
+                cogs = cogs.freq.FY
+                accounts_receivable = accounts_receivable.freq.FY
+                revenue = revenue.freq.FY
+                accounts_payable = accounts_payable.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                inventory = inventory.freq.TTM
+                cogs = cogs.freq.TTM
+                accounts_receivable = accounts_receivable.freq.TTM
+                revenue = revenue.freq.TTM
+                accounts_payable = accounts_payable.freq.TTM
+        # Apply trailing window if specified (for backward compatibility)
         if trailing:
             inventory = inventory.rolling(trailing).mean()
             cogs = cogs.rolling(trailing).sum()
@@ -272,7 +353,15 @@ class Ratios:
         result = financial_health_model.get_cash_conversion_cycle(
             inventory, cogs, accounts_receivable, revenue, accounts_payable, days
         )
-        result_df = result.to_frame(name='Cash Conversion Cycle')
+        
+        # Name based on frequency used
+        ratio_name = 'Cash Conversion Cycle'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
     @handle_errors
@@ -282,6 +371,7 @@ class Ratios:
         growth: bool = False,
         lag: int | list[int] = 1,
         trailing: int | None = None,
+        freq: FrequencyType = None,
     ) -> pd.DataFrame:
         """
         Calculate the Altman Z-Score, which predicts the probability that a company
@@ -292,21 +382,47 @@ class Ratios:
             growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
             lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
             trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
 
         Returns:
             pd.DataFrame: Altman Z-Score values.
         """
         # Get required series from financial data
-        current_assets = self._financial_data['Current_Assets']
-        current_liabilities = self._financial_data['Current_Liabilities']
-        total_assets = self._financial_data['Total_Assets']
+        current_assets = self._financial_data['Total Current Assets']
+        current_liabilities = self._financial_data['Total Current Liabilities']
+        total_assets = self._financial_data['Total Assets']
         ebit = self._financial_data['EBIT']
-        diluted_shares = self._financial_data['Diluted_Shares_Outstanding']
+        diluted_shares = self._financial_data['Diluted Shares Outstanding']
         revenue = self._financial_data['Revenue']
-        total_liabilities = self._financial_data['Total_Liabilities']
-        retained_earnings = self._financial_data['Retained_Earnings']
-        stock_price = self._financial_data['Stock_Price']
+        total_liabilities = self._financial_data['Total Liabilities']
+        retained_earnings = self._financial_data['Retained Earnings']
+        stock_price = self._financial_data['Stock Price']
 
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                current_assets = current_assets.freq.FY
+                current_liabilities = current_liabilities.freq.FY
+                total_assets = total_assets.freq.FY
+                ebit = ebit.freq.FY
+                diluted_shares = diluted_shares.freq.FY
+                revenue = revenue.freq.FY
+                total_liabilities = total_liabilities.freq.FY
+                retained_earnings = retained_earnings.freq.FY
+                # Stock price doesn't get frequency transformation
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                current_assets = current_assets.freq.TTM
+                current_liabilities = current_liabilities.freq.TTM
+                total_assets = total_assets.freq.TTM
+                ebit = ebit.freq.TTM
+                diluted_shares = diluted_shares.freq.TTM
+                revenue = revenue.freq.TTM
+                total_liabilities = total_liabilities.freq.TTM
+                retained_earnings = retained_earnings.freq.TTM
+                # Stock price doesn't get frequency transformation
+        # Apply trailing window if specified (for backward compatibility)
         if trailing:
             current_assets = current_assets.rolling(trailing).mean()
             current_liabilities = current_liabilities.rolling(trailing).mean()
@@ -321,7 +437,15 @@ class Ratios:
             current_assets, current_liabilities, total_assets,
             ebit, diluted_shares, revenue, total_liabilities, retained_earnings, stock_price
         )
-        result_df = result.to_frame(name='Altman Z-Score')
+        
+        # Name based on frequency used
+        ratio_name = 'Altman Z-Score'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
 
@@ -334,6 +458,7 @@ class Ratios:
             growth: bool = False,
             lag: int | list[int] = 1,
             trailing: int | None = None,
+            freq: FrequencyType = None,
     ) -> pd.DataFrame:
         """
         Calculates and collects all Earnings-related Ratios.
@@ -343,45 +468,94 @@ class Ratios:
             growth (bool, optional): Whether to calculate the growth of the ratios. Defaults to False.
             lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
             trailing (int): Defines whether to select a trailing period.
-            E.g. when selecting 4 with quarterly data, the TTM is calculated.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
 
         Required columns in financial_data:
             - Revenue: For revenue growth and related metrics
             - Basic_EPS: For EPS growth and related metrics
             - Gross_Margin: For gross margin metrics
             - EBITDA: For EBITDA-related metrics
+            - Net_Income: For profitability metrics
+            - Free_Cash_Flow: For cash flow metrics
             Additional columns may be required by individual ratio calculations.
 
         Returns:
             pd.DataFrame: Earnings ratios calculated based on the specified parameters.
         """
-        # Get required series from financial data
-        revenue = self._financial_data['Revenue']
-        eps_basic = self._financial_data['Basic_EPS']
-        gross_margin = self._financial_data['Gross_Margin']
-        ebitda = self._financial_data['EBITDA']
+        # Calculate all earnings ratios with the appropriate frequency
+        
+        # Composite Scores
+        piotroski_score = self.get_piotroski_score_ratio(freq=freq)
+        # Basic Growth Metrics
+        revenue_growth = self.get_revenue_growth_ratio(freq=freq)
+        eps_growth = self.get_eps_growth_ratio(freq=freq)
+        # Consecutive growth metrics
+        revenue_consecutive_growth = self.get_revenue_consecutive_growth_ratio(freq=freq)
+        eps_consecutive_growth = self.get_eps_consecutive_growth_ratio(freq=freq)
+        # Average growth analysis
+        avg_revenue_growth = self.get_average_revenue_growth_ratio(freq=freq)
+        avg_gross_margin = self.get_average_gross_margin_ratio(freq=freq)
+        avg_gross_margin_growth = self.get_average_gross_margin_growth_ratio(freq=freq)
+        avg_ebitda = self.get_average_ebitda_ratio(freq=freq)
+        avg_ebitda_growth = self.get_average_ebitda_growth_ratio(freq=freq)
+        avg_eps_growth = self.get_average_eps_growth_ratio(freq=freq)
+        # Growth comparison metrics
+        revenue_growth_vs_avg = self.get_revenue_growth_vs_average_growth_ratio(freq=freq)
+        eps_growth_vs_avg = self.get_eps_growth_vs_average_growth_ratio(freq=freq)
+        ebitda_growth_vs_avg = self.get_ebitda_growth_vs_average_growth_ratio(freq=freq)
+        gross_margin_growth_vs_avg = self.get_gross_margin_growth_vs_average_growth_ratio(freq=freq)
+        # Return metrics
+        roe = self.get_roe_ratio(freq=freq)
+        roe_vs_avg = self.get_roe_vs_average_roe_ratio(freq=freq)
+        roa = self.get_return_on_assets_ratio(freq=freq)
+        roa_vs_avg = self.get_roa_vs_average_roa_ratio(freq=freq)
+        # Estimate Comparison Metrics
+        revenue_vs_estimate = self.get_revenue_vs_estimate_ratio(freq=freq)
+        shares_outstanding_vs_estimate = self.get_shares_outstanding_vs_estimate_ratio(freq=freq)
+        # Cash Flow Analysis
+        fcf_growth = self.get_fcf_growth_ratio(freq=freq)
+        fcf_avg_growth = self.get_free_cash_flow_average_growth_ratio(freq=freq)
 
-        # Calculate all earnings ratios
-        piotroski_score = self.get_piotroski_score_ratio(trailing=trailing)
-        revenue_growth = calculate_growth(revenue, lag=1)
-        eps_growth = calculate_growth(eps_basic, lag=1)
-        consecutive_revenue_growth = self.get_consecutive_number_of_growth_ratio(revenue, period=20)
-        avg_revenue_growth = calculate_average(revenue, growth=True, trailing=20)
-        avg_gross_margin_growth = calculate_average(gross_margin, growth=True, trailing=20)
-        avg_gross_margin = calculate_average(gross_margin, trailing=20)
-        avg_ebitda_growth = calculate_average(ebitda, growth=True, trailing=20)
-        avg_ebitda = calculate_average(ebitda, trailing=20)
-        avg_eps_growth = calculate_average(eps_basic, growth=True, trailing=20)
-        consecutive_eps_growth = self.get_consecutive_number_of_growth_ratio(eps_basic, period=20)
-
-
-        ebitda_margin = self.get_ebitda_margin_ratio(trailing=trailing)
-        roe = self.get_roe_ratio(trailing=trailing)
-        fcf_growth = self.get_fcf_growth_ratio(trailing=trailing)
-
-        # Combine all ratios
+        # Combine all ratios by logical categories
         self._earning_ratios = pd.concat([
-             piotroski_score, revenue_growth, eps_growth, ebitda_margin, roe, fcf_growth
+            # Composite Scores
+            piotroski_score,
+            
+            # Basic Growth Metrics
+            revenue_growth, 
+            eps_growth,
+            
+            # Consecutive Growth Metrics
+            revenue_consecutive_growth,
+            eps_consecutive_growth,
+            
+            # Average Growth Analysis
+            avg_revenue_growth,
+            avg_gross_margin,
+            avg_gross_margin_growth,
+            avg_ebitda,
+            avg_ebitda_growth,
+            avg_eps_growth,
+            
+            # Growth Comparison Metrics
+            revenue_growth_vs_avg,
+            eps_growth_vs_avg,
+            ebitda_growth_vs_avg,
+            gross_margin_growth_vs_avg,
+            
+            # Return Metrics
+            roe,
+            roe_vs_avg,
+            roa,
+            roa_vs_avg,
+            
+            # Estimate Comparison Metrics
+            revenue_vs_estimate,
+            shares_outstanding_vs_estimate,
+            
+            # Cash Flow Analysis
+            fcf_growth,
+            fcf_avg_growth
         ], axis=1)
 
         # Process and return the results
@@ -394,6 +568,7 @@ class Ratios:
             growth: bool = False,
             lag: int | list[int] = 1,
             trailing: int | None = None,
+            freq: FrequencyType = None,
     ) -> pd.DataFrame:
         """
         Calculate the Piotroski F-Score, a comprehensive scoring system that evaluates
@@ -404,6 +579,7 @@ class Ratios:
             growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
             lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
             trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
 
         Required columns in financial_data:
             - Net_Income: For profitability assessment
@@ -418,17 +594,42 @@ class Ratios:
             pd.DataFrame: Piotroski F-Score values ranging from 0-9
         """
         # Get required series from financial data
-        net_income = self._financial_data['Net_Income']
-        operating_cash_flow = self._financial_data['Operating_Cash_Flow']
-        total_assets = self._financial_data['Total_Assets']
-        total_debt = self._financial_data['Total_Debt']
-        current_assets = self._financial_data['Current_Assets']
-        current_liabilities = self._financial_data['Current_Liabilities']
-        shares_outstanding = self._financial_data['Shares_Outstanding']
+        net_income = self._financial_data['Net Income']
+        operating_cash_flow = self._financial_data['Operating Cash Flow']
+        total_assets = self._financial_data['Total Assets']
+        total_debt = self._financial_data['Total Debt']
+        current_assets = self._financial_data['Total Current Assets']
+        current_liabilities = self._financial_data['Total Current Liabilities']
+        shares_outstanding = self._financial_data['Shares Outstanding']
         revenue = self._financial_data['Revenue']
-        cogs = self._financial_data['Cost_Of_Goods_Sold']
+        cogs = self._financial_data['Cost of Goods Sold']
 
-        # Apply trailing if specified
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                net_income = net_income.freq.FY
+                operating_cash_flow = operating_cash_flow.freq.FY
+                total_assets = total_assets.freq.FY
+                total_debt = total_debt.freq.FY
+                current_assets = current_assets.freq.FY
+                current_liabilities = current_liabilities.freq.FY
+                shares_outstanding = shares_outstanding.freq.FY
+                revenue = revenue.freq.FY
+                cogs = cogs.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                net_income = net_income.freq.TTM
+                operating_cash_flow = operating_cash_flow.freq.TTM
+                total_assets = total_assets.freq.TTM
+                total_debt = total_debt.freq.TTM
+                current_assets = current_assets.freq.TTM
+                current_liabilities = current_liabilities.freq.TTM
+                shares_outstanding = shares_outstanding.freq.TTM
+                revenue = revenue.freq.TTM
+                cogs = cogs.freq.TTM
+
+        # Apply trailing if specified (for backward compatibility)
         if trailing:
             net_income = net_income.rolling(trailing).mean()
             operating_cash_flow = operating_cash_flow.rolling(trailing).mean()
@@ -453,77 +654,131 @@ class Ratios:
             cogs=cogs
         )
 
+        # Name based on frequency used
+        ratio_name = 'Piotroski F-Score'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+
         # Convert to DataFrame with appropriate name
-        result_df = result.to_frame(name='Piotroski F-Score')
+        result_df = result.to_frame(name=ratio_name)
 
         # Process and return the results
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
-
-    def get_consecutive_number_of_growth_ratio(
-        self,
-        dataset: pd.Series,
-        period: int = 20,
-        growth: bool = False,
-        lag: int | list[int] = 1,
-        rounding: int | None = None,
-    ) -> pd.DataFrame:
-        """
-        Calculate the number of consecutive periods with positive growth for a given financial metric.
-
-        Args:
-            dataset (pd.Series): The financial metric to analyze for consecutive growth
-            period (int, optional): Number of periods to look back. Defaults to 20.
-            growth (bool, optional): Whether to calculate growth of the ratio. Defaults to False.
-            lag (int | list[int], optional): The lag to use for growth calculation. Defaults to 1.
-            rounding (int | None, optional): Number of decimal places to round to. Defaults to None.
-
-        Returns:
-            pd.DataFrame: DataFrame containing the consecutive growth periods
-        """
-        result = earnings_model.get_consecutive_number_of_growth(dataset, period)
-        return self._process_ratio_result(
-            pd.DataFrame(result),
-            growth=growth,
-            lag=lag,
-            rounding=rounding or self._rounding,
-        )
-
-
     @handle_errors
-    def get_ebitda_margin_ratio(
+    def get_revenue_growth_ratio(
             self,
             rounding: int | None = None,
             growth: bool = False,
             lag: int | list[int] = 1,
             trailing: int | None = None,
+            freq: FrequencyType = None,
     ) -> pd.DataFrame:
         """
-        Calculate the EBITDA Margin ratio.
+        Calculate the period-over-period revenue growth rate.
 
         Args:
             rounding (int, optional): The number of decimals to round the results to. Defaults to 4.
             growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
             lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
             trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
 
         Required columns in financial_data:
-            - EBITDA: For earnings before interest, taxes, depreciation, and amortization
-            - Revenue: For total revenue
+            - Revenue: For revenue values
 
         Returns:
-            pd.DataFrame: EBITDA margin ratio values.
+            pd.DataFrame: Revenue growth rates
         """
         # Get required series from financial data
-        ebitda = self._financial_data['EBITDA']
         revenue = self._financial_data['Revenue']
 
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                revenue = revenue.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                revenue = revenue.freq.TTM
+
+        # Apply trailing if specified (for backward compatibility)
         if trailing:
-            ebitda = ebitda.rolling(trailing).mean()
             revenue = revenue.rolling(trailing).mean()
 
-        result = earnings_model.calculate_ebitda_margin(ebitda, revenue)
-        result_df = result.to_frame(name='EBITDA Margin')
+        # Calculate revenue growth using earnings model
+        result = earnings_model.get_revenue_growth(revenue)
+
+        # Name based on frequency used
+        ratio_name = 'Revenue Growth'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+
+        # Convert to DataFrame with appropriate name
+        result_df = result.to_frame(name=ratio_name)
+
+        # Process and return the results
+        return self._process_ratio_result(result_df, growth, lag, rounding)
+    
+    @handle_errors
+    def get_eps_growth_ratio(
+            self,
+            rounding: int | None = None,
+            growth: bool = False,
+            lag: int | list[int] = 1,
+            trailing: int | None = None,
+            freq: FrequencyType = None,
+    ) -> pd.DataFrame:
+        """
+        Calculate the period-over-period EPS growth rate.
+
+        Args:
+            rounding (int, optional): The number of decimals to round the results to. Defaults to 4.
+            growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
+            lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
+            trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
+
+        Required columns in financial_data:
+            - Basic_EPS: For earnings per share values
+
+        Returns:
+            pd.DataFrame: EPS growth rates
+        """
+        # Get required series from financial data
+        eps = self._financial_data['Basic EPS']
+
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                eps = eps.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                eps = eps.freq.TTM
+
+        # Apply trailing if specified (for backward compatibility)
+        if trailing:
+            eps = eps.rolling(trailing).mean()
+
+        # Calculate EPS growth using earnings model
+        result = earnings_model.get_eps_growth(eps)
+
+        # Name based on frequency used
+        ratio_name = 'EPS Growth'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+
+        # Convert to DataFrame with appropriate name
+        result_df = result.to_frame(name=ratio_name)
+
+        # Process and return the results
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
     @handle_errors
@@ -533,6 +788,7 @@ class Ratios:
             growth: bool = False,
             lag: int | list[int] = 1,
             trailing: int | None = None,
+            freq: FrequencyType = None,
     ) -> pd.DataFrame:
         """
         Calculate the Return on Equity (ROE) ratio.
@@ -542,6 +798,7 @@ class Ratios:
             growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
             lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
             trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
 
         Required columns in financial_data:
             - Net_Income: For net income
@@ -552,17 +809,39 @@ class Ratios:
             pd.DataFrame: ROE ratio values.
         """
         # Get required series from financial data
-        net_income = self._financial_data['Net_Income']
-        total_assets = self._financial_data['Total_Assets']
-        total_liabilities = self._financial_data['Total_Liabilities']
+        net_income = self._financial_data['Net Income']
+        total_assets = self._financial_data['Total Assets']
+        total_liabilities = self._financial_data['Total Liabilities']
 
+        # Calculate shareholders' equity
+        shareholders_equity = total_assets - total_liabilities
+
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                net_income = net_income.freq.FY
+                shareholders_equity = shareholders_equity.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                net_income = net_income.freq.TTM
+                shareholders_equity = shareholders_equity.freq.TTM
+
+        # Apply trailing if specified (for backward compatibility)
         if trailing:
             net_income = net_income.rolling(trailing).mean()
-            total_assets = total_assets.rolling(trailing).mean()
-            total_liabilities = total_liabilities.rolling(trailing).mean()
+            shareholders_equity = shareholders_equity.rolling(trailing).mean()
 
-        result = earnings_model.get_roe(net_income, total_assets, total_liabilities)
-        result_df = result.to_frame(name='ROE')
+        result = earnings_model.get_return_on_equity(net_income, shareholders_equity)
+        
+        # Name based on frequency used
+        ratio_name = 'ROE'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
     @handle_errors
@@ -572,6 +851,7 @@ class Ratios:
             growth: bool = False,
             lag: int | list[int] = 1,
             trailing: int | None = None,
+            freq: FrequencyType = None,
     ) -> pd.DataFrame:
         """
         Calculate the Year-over-Year Free Cash Flow Growth ratio.
@@ -581,6 +861,7 @@ class Ratios:
             growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
             lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
             trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
 
         Required columns in financial_data:
             - Free_Cash_Flow: For calculating year-over-year FCF growth
@@ -589,15 +870,1038 @@ class Ratios:
             pd.DataFrame: FCF growth ratio values.
         """
         # Get required series from financial data
-        fcf = self._financial_data['Free_Cash_Flow']
+        fcf = self._financial_data['Free Cash Flow']
 
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                fcf = fcf.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                fcf = fcf.freq.TTM
+
+        # Apply trailing if specified (for backward compatibility)
         if trailing:
             fcf = fcf.rolling(trailing).mean()
 
-        result = earnings_model.get_annual_growth_fcf(fcf)
-        result_df = result.to_frame(name='FCF Growth YoY')
+        result = earnings_model.get_free_cash_flow_growth(fcf)
+        
+        # Name based on frequency used
+        ratio_name = 'FCF Growth YoY'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
+        
+    @handle_errors
+    def get_revenue_consecutive_growth_ratio(
+            self,
+            rounding: int | None = None,
+            growth: bool = False,
+            lag: int | list[int] = 1,
+            trailing: int | None = None,
+            freq: FrequencyType = None,
+    ) -> pd.DataFrame:
+        """
+        Calculate the number of consecutive periods with positive revenue growth.
 
+        Args:
+            rounding (int, optional): The number of decimals to round the results to. Defaults to 4.
+            growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
+            lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
+            trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
+
+        Required columns in financial_data:
+            - Revenue: For revenue values
+
+        Returns:
+            pd.DataFrame: Consecutive growth periods count.
+        """
+        # Get required series from financial data
+        revenue = self._financial_data['Revenue']
+
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                revenue = revenue.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                revenue = revenue.freq.TTM
+
+        # Apply trailing if specified (for backward compatibility)
+        if trailing:
+            revenue = revenue.rolling(trailing).mean()
+
+        result = earnings_model.get_revenue_consecutive_growth(revenue)
+        
+        # Name based on frequency used
+        ratio_name = 'Revenue Consecutive Growth Periods'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
+        return self._process_ratio_result(result_df, growth, lag, rounding)
+        
+    @handle_errors
+    def get_eps_consecutive_growth_ratio(
+            self,
+            rounding: int | None = None,
+            growth: bool = False,
+            lag: int | list[int] = 1,
+            trailing: int | None = None,
+            freq: FrequencyType = None,
+    ) -> pd.DataFrame:
+        """
+        Calculate the number of consecutive periods with positive EPS growth.
+
+        Args:
+            rounding (int, optional): The number of decimals to round the results to. Defaults to 4.
+            growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
+            lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
+            trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
+
+        Required columns in financial_data:
+            - Basic_EPS: For earnings per share values
+
+        Returns:
+            pd.DataFrame: Consecutive growth periods count.
+        """
+        # Get required series from financial data
+        eps = self._financial_data['Basic EPS']
+
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                eps = eps.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                eps = eps.freq.TTM
+
+        # Apply trailing if specified (for backward compatibility)
+        if trailing:
+            eps = eps.rolling(trailing).mean()
+
+        result = earnings_model.get_eps_consecutive_growth(eps)
+        
+        # Name based on frequency used
+        ratio_name = 'EPS Consecutive Growth Periods'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
+        return self._process_ratio_result(result_df, growth, lag, rounding)
+    
+    @handle_errors
+    def get_average_revenue_growth_ratio(
+            self,
+            rounding: int | None = None,
+            growth: bool = False,
+            lag: int | list[int] = 1,
+            trailing: int | None = None,
+            freq: FrequencyType = None,
+    ) -> pd.DataFrame:
+        """
+        Calculate the 20-period trailing average revenue growth rate.
+
+        Args:
+            rounding (int, optional): The number of decimals to round the results to. Defaults to 4.
+            growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
+            lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
+            trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
+
+        Required columns in financial_data:
+            - Revenue: For revenue values
+
+        Returns:
+            pd.DataFrame: Average revenue growth rates.
+        """
+        # Get required series from financial data
+        revenue = self._financial_data['Revenue']
+
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                revenue = revenue.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                revenue = revenue.freq.TTM
+
+        # Apply trailing if specified (for backward compatibility)
+        if trailing:
+            revenue = revenue.rolling(trailing).mean()
+
+        result = earnings_model.get_average_revenue_growth(revenue)
+        
+        # Name based on frequency used
+        ratio_name = 'Average Revenue Growth (20p)'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
+        return self._process_ratio_result(result_df, growth, lag, rounding)
+    
+    @handle_errors
+    def get_average_gross_margin_ratio(
+            self,
+            rounding: int | None = None,
+            growth: bool = False,
+            lag: int | list[int] = 1,
+            trailing: int | None = None,
+            freq: FrequencyType = None,
+    ) -> pd.DataFrame:
+        """
+        Calculate the 20-period trailing average gross margin.
+
+        Args:
+            rounding (int, optional): The number of decimals to round the results to. Defaults to 4.
+            growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
+            lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
+            trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
+
+        Required columns in financial_data:
+            - Gross_Margin: For gross margin values
+
+        Returns:
+            pd.DataFrame: Average gross margin values.
+        """
+        # Get required series from financial data
+        gross_margin = self._financial_data['Gross Margin']
+
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                gross_margin = gross_margin.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                gross_margin = gross_margin.freq.TTM
+
+        # Apply trailing if specified (for backward compatibility)
+        if trailing:
+            gross_margin = gross_margin.rolling(trailing).mean()
+
+        result = earnings_model.get_average_gross_margin(gross_margin)
+        
+        # Name based on frequency used
+        ratio_name = 'Average Gross Margin (20p)'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
+        return self._process_ratio_result(result_df, growth, lag, rounding)
+    
+    @handle_errors
+    def get_average_gross_margin_growth_ratio(
+            self,
+            rounding: int | None = None,
+            growth: bool = False,
+            lag: int | list[int] = 1,
+            trailing: int | None = None,
+            freq: FrequencyType = None,
+    ) -> pd.DataFrame:
+        """
+        Calculate the 20-period trailing average gross margin growth rate.
+
+        Args:
+            rounding (int, optional): The number of decimals to round the results to. Defaults to 4.
+            growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
+            lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
+            trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
+
+        Required columns in financial_data:
+            - Gross_Margin: For gross margin values
+
+        Returns:
+            pd.DataFrame: Average gross margin growth rates.
+        """
+        # Get required series from financial data
+        gross_margin = self._financial_data['Gross Margin']
+
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                gross_margin = gross_margin.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                gross_margin = gross_margin.freq.TTM
+
+        # Apply trailing if specified (for backward compatibility)
+        if trailing:
+            gross_margin = gross_margin.rolling(trailing).mean()
+
+        result = earnings_model.get_average_gross_margin_growth(gross_margin)
+        
+        # Name based on frequency used
+        ratio_name = 'Average Gross Margin Growth (20p)'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
+        return self._process_ratio_result(result_df, growth, lag, rounding)
+    
+    @handle_errors
+    def get_average_ebitda_ratio(
+            self,
+            rounding: int | None = None,
+            growth: bool = False,
+            lag: int | list[int] = 1,
+            trailing: int | None = None,
+            freq: FrequencyType = None,
+    ) -> pd.DataFrame:
+        """
+        Calculate the 20-period trailing average EBITDA.
+
+        Args:
+            rounding (int, optional): The number of decimals to round the results to. Defaults to 4.
+            growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
+            lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
+            trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
+
+        Required columns in financial_data:
+            - EBITDA: For EBITDA values
+
+        Returns:
+            pd.DataFrame: Average EBITDA values.
+        """
+        # Get required series from financial data
+        ebitda = self._financial_data['EBITDA']
+
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                ebitda = ebitda.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                ebitda = ebitda.freq.TTM
+
+        # Apply trailing if specified (for backward compatibility)
+        if trailing:
+            ebitda = ebitda.rolling(trailing).mean()
+
+        result = earnings_model.get_average_ebitda(ebitda)
+        
+        # Name based on frequency used
+        ratio_name = 'Average EBITDA (20p)'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
+        return self._process_ratio_result(result_df, growth, lag, rounding)
+    
+    @handle_errors
+    def get_average_ebitda_growth_ratio(
+            self,
+            rounding: int | None = None,
+            growth: bool = False,
+            lag: int | list[int] = 1,
+            trailing: int | None = None,
+            freq: FrequencyType = None,
+    ) -> pd.DataFrame:
+        """
+        Calculate the 20-period trailing average EBITDA growth rate.
+
+        Args:
+            rounding (int, optional): The number of decimals to round the results to. Defaults to 4.
+            growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
+            lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
+            trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
+
+        Required columns in financial_data:
+            - EBITDA: For EBITDA values
+
+        Returns:
+            pd.DataFrame: Average EBITDA growth rates.
+        """
+        # Get required series from financial data
+        ebitda = self._financial_data['EBITDA']
+
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                ebitda = ebitda.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                ebitda = ebitda.freq.TTM
+
+        # Apply trailing if specified (for backward compatibility)
+        if trailing:
+            ebitda = ebitda.rolling(trailing).mean()
+
+        result = earnings_model.get_average_ebitda_growth(ebitda)
+        
+        # Name based on frequency used
+        ratio_name = 'Average EBITDA Growth (20p)'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
+        return self._process_ratio_result(result_df, growth, lag, rounding)
+    
+    @handle_errors
+    def get_average_eps_growth_ratio(
+            self,
+            rounding: int | None = None,
+            growth: bool = False,
+            lag: int | list[int] = 1,
+            trailing: int | None = None,
+            freq: FrequencyType = None,
+    ) -> pd.DataFrame:
+        """
+        Calculate the 20-period trailing average EPS growth rate.
+
+        Args:
+            rounding (int, optional): The number of decimals to round the results to. Defaults to 4.
+            growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
+            lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
+            trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
+
+        Required columns in financial_data:
+            - Basic_EPS: For EPS values
+
+        Returns:
+            pd.DataFrame: Average EPS growth rates.
+        """
+        # Get required series from financial data
+        eps = self._financial_data['Basic EPS']
+
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                eps = eps.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                eps = eps.freq.TTM
+
+        # Apply trailing if specified (for backward compatibility)
+        if trailing:
+            eps = eps.rolling(trailing).mean()
+
+        result = earnings_model.get_average_eps_growth(eps)
+        
+        # Name based on frequency used
+        ratio_name = 'Average EPS Growth (20p)'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
+        return self._process_ratio_result(result_df, growth, lag, rounding)
+    
+    # Growth Comparison Metrics
+    
+    @handle_errors
+    def get_revenue_growth_vs_average_growth_ratio(
+            self,
+            rounding: int | None = None,
+            growth: bool = False,
+            lag: int | list[int] = 1,
+            trailing: int | None = None,
+            freq: FrequencyType = None,
+    ) -> pd.DataFrame:
+        """
+        Calculate the ratio of current revenue growth to its 20-period trailing average growth.
+
+        Args:
+            rounding (int, optional): The number of decimals to round the results to. Defaults to 4.
+            growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
+            lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
+            trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
+
+        Required columns in financial_data:
+            - Revenue: For revenue values
+
+        Returns:
+            pd.DataFrame: Growth ratio values (current growth / average growth).
+        """
+        # Get required series from financial data
+        revenue = self._financial_data['Revenue']
+
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                revenue = revenue.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                revenue = revenue.freq.TTM
+
+        # Apply trailing if specified (for backward compatibility)
+        if trailing:
+            revenue = revenue.rolling(trailing).mean()
+
+        result = earnings_model.get_revenue_growth_vs_average_growth(revenue)
+        
+        # Name based on frequency used
+        ratio_name = 'Revenue Growth vs Avg Growth'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
+        return self._process_ratio_result(result_df, growth, lag, rounding)
+    
+    @handle_errors
+    def get_eps_growth_vs_average_growth_ratio(
+            self,
+            rounding: int | None = None,
+            growth: bool = False,
+            lag: int | list[int] = 1,
+            trailing: int | None = None,
+            freq: FrequencyType = None,
+    ) -> pd.DataFrame:
+        """
+        Calculate the ratio of current EPS growth to its 20-period trailing average growth.
+
+        Args:
+            rounding (int, optional): The number of decimals to round the results to. Defaults to 4.
+            growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
+            lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
+            trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
+
+        Required columns in financial_data:
+            - Basic_EPS: For EPS values
+
+        Returns:
+            pd.DataFrame: Growth ratio values (current growth / average growth).
+        """
+        # Get required series from financial data
+        eps = self._financial_data['Basic EPS']
+
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                eps = eps.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                eps = eps.freq.TTM
+
+        # Apply trailing if specified (for backward compatibility)
+        if trailing:
+            eps = eps.rolling(trailing).mean()
+
+        result = earnings_model.get_eps_growth_vs_average_growth(eps)
+        
+        # Name based on frequency used
+        ratio_name = 'EPS Growth vs Avg Growth'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
+        return self._process_ratio_result(result_df, growth, lag, rounding)
+    
+    @handle_errors
+    def get_ebitda_growth_vs_average_growth_ratio(
+            self,
+            rounding: int | None = None,
+            growth: bool = False,
+            lag: int | list[int] = 1,
+            trailing: int | None = None,
+            freq: FrequencyType = None,
+    ) -> pd.DataFrame:
+        """
+        Calculate the ratio of current EBITDA growth to its 20-period trailing average growth.
+
+        Args:
+            rounding (int, optional): The number of decimals to round the results to. Defaults to 4.
+            growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
+            lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
+            trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
+
+        Required columns in financial_data:
+            - EBITDA: For EBITDA values
+
+        Returns:
+            pd.DataFrame: Growth ratio values (current growth / average growth).
+        """
+        # Get required series from financial data
+        ebitda = self._financial_data['EBITDA']
+
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                ebitda = ebitda.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                ebitda = ebitda.freq.TTM
+
+        # Apply trailing if specified (for backward compatibility)
+        if trailing:
+            ebitda = ebitda.rolling(trailing).mean()
+
+        result = earnings_model.get_ebitda_growth_vs_average_growth(ebitda)
+        
+        # Name based on frequency used
+        ratio_name = 'EBITDA Growth vs Avg Growth'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
+        return self._process_ratio_result(result_df, growth, lag, rounding)
+    
+    @handle_errors
+    def get_gross_margin_growth_vs_average_growth_ratio(
+            self,
+            rounding: int | None = None,
+            growth: bool = False,
+            lag: int | list[int] = 1,
+            trailing: int | None = None,
+            freq: FrequencyType = None,
+    ) -> pd.DataFrame:
+        """
+        Calculate the ratio of current gross margin growth to its 20-period trailing average growth.
+
+        Args:
+            rounding (int, optional): The number of decimals to round the results to. Defaults to 4.
+            growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
+            lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
+            trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
+
+        Required columns in financial_data:
+            - Gross_Margin: For gross margin values
+
+        Returns:
+            pd.DataFrame: Growth ratio values (current growth / average growth).
+        """
+        # Get required series from financial data
+        gross_margin = self._financial_data['Gross Margin']
+
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                gross_margin = gross_margin.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                gross_margin = gross_margin.freq.TTM
+
+        # Apply trailing if specified (for backward compatibility)
+        if trailing:
+            gross_margin = gross_margin.rolling(trailing).mean()
+
+        result = earnings_model.get_gross_margin_growth_vs_average_growth(gross_margin)
+        
+        # Name based on frequency used
+        ratio_name = 'Gross Margin Growth vs Avg Growth'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
+        return self._process_ratio_result(result_df, growth, lag, rounding)
+    
+    # Return Metrics
+    
+    @handle_errors
+    def get_roe_vs_average_roe_ratio(
+            self,
+            rounding: int | None = None,
+            growth: bool = False,
+            lag: int | list[int] = 1,
+            trailing: int | None = None,
+            freq: FrequencyType = None,
+    ) -> pd.DataFrame:
+        """
+        Calculate the ratio of current Return on Equity (ROE) to its 20-period trailing average.
+
+        Args:
+            rounding (int, optional): The number of decimals to round the results to. Defaults to 4.
+            growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
+            lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
+            trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
+
+        Required columns in financial_data:
+            - Net_Income: For net income
+            - Total_Assets: For total assets
+            - Total_Liabilities: For calculating shareholders' equity
+
+        Returns:
+            pd.DataFrame: ROE ratio values (current ROE / average ROE).
+        """
+        # Get required series from financial data
+        net_income = self._financial_data['Net Income']
+        total_assets = self._financial_data['Total Assets']
+        total_liabilities = self._financial_data['Total Liabilities']
+
+        # Calculate shareholders' equity
+        shareholders_equity = total_assets - total_liabilities
+
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                net_income = net_income.freq.FY
+                shareholders_equity = shareholders_equity.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                net_income = net_income.freq.TTM
+                shareholders_equity = shareholders_equity.freq.TTM
+
+        # Apply trailing if specified (for backward compatibility)
+        if trailing:
+            net_income = net_income.rolling(trailing).mean()
+            shareholders_equity = shareholders_equity.rolling(trailing).mean()
+
+        result = earnings_model.get_roe_vs_average_roe(net_income, shareholders_equity)
+        
+        # Name based on frequency used
+        ratio_name = 'ROE vs Average ROE'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
+        return self._process_ratio_result(result_df, growth, lag, rounding)
+    
+    @handle_errors
+    def get_return_on_assets_ratio(
+            self,
+            rounding: int | None = None,
+            growth: bool = False,
+            lag: int | list[int] = 1,
+            trailing: int | None = None,
+            freq: FrequencyType = None,
+    ) -> pd.DataFrame:
+        """
+        Calculate Return on Assets (ROA).
+
+        Args:
+            rounding (int, optional): The number of decimals to round the results to. Defaults to 4.
+            growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
+            lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
+            trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
+
+        Required columns in financial_data:
+            - Net_Income: For net income
+            - Total_Assets: For total assets
+
+        Returns:
+            pd.DataFrame: ROA ratio values.
+        """
+        # Get required series from financial data
+        net_income = self._financial_data['Net Income']
+        total_assets = self._financial_data['Total Assets']
+
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                net_income = net_income.freq.FY
+                total_assets = total_assets.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                net_income = net_income.freq.TTM
+                total_assets = total_assets.freq.TTM
+
+        # Apply trailing if specified (for backward compatibility)
+        if trailing:
+            net_income = net_income.rolling(trailing).mean()
+            total_assets = total_assets.rolling(trailing).mean()
+
+        result = earnings_model.get_return_on_assets(net_income, total_assets)
+        
+        # Name based on frequency used
+        ratio_name = 'ROA'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
+        return self._process_ratio_result(result_df, growth, lag, rounding)
+    
+    @handle_errors
+    def get_roa_vs_average_roa_ratio(
+            self,
+            rounding: int | None = None,
+            growth: bool = False,
+            lag: int | list[int] = 1,
+            trailing: int | None = None,
+            freq: FrequencyType = None,
+    ) -> pd.DataFrame:
+        """
+        Calculate the ratio of current Return on Assets (ROA) to its 20-period trailing average.
+
+        Args:
+            rounding (int, optional): The number of decimals to round the results to. Defaults to 4.
+            growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
+            lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
+            trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
+
+        Required columns in financial_data:
+            - Net_Income: For net income
+            - Total_Assets: For total assets
+
+        Returns:
+            pd.DataFrame: ROA ratio values (current ROA / average ROA).
+        """
+        # Get required series from financial data
+        net_income = self._financial_data['Net Income']
+        total_assets = self._financial_data['Total Assets']
+
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                net_income = net_income.freq.FY
+                total_assets = total_assets.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                net_income = net_income.freq.TTM
+                total_assets = total_assets.freq.TTM
+
+        # Apply trailing if specified (for backward compatibility)
+        if trailing:
+            net_income = net_income.rolling(trailing).mean()
+            total_assets = total_assets.rolling(trailing).mean()
+
+        result = earnings_model.get_roa_vs_average_roa(net_income, total_assets)
+        
+        # Name based on frequency used
+        ratio_name = 'ROA vs Average ROA'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
+        return self._process_ratio_result(result_df, growth, lag, rounding)
+    
+    # Estimate Comparison Metrics
+    
+    @handle_errors
+    def get_revenue_vs_estimate_ratio(
+            self,
+            rounding: int | None = None,
+            growth: bool = False,
+            lag: int | list[int] = 1,
+            trailing: int | None = None,
+            freq: FrequencyType = None,
+    ) -> pd.DataFrame:
+        """
+        Calculate the ratio of actual revenue to estimated revenue.
+
+        Args:
+            rounding (int, optional): The number of decimals to round the results to. Defaults to 4.
+            growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
+            lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
+            trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
+
+        Required columns in financial_data:
+            - Revenue: For actual revenue values
+            - Revenue_Estimate: For estimated revenue values
+
+        Returns:
+            pd.DataFrame: Ratio of actual to estimated revenue.
+        """
+        # Get required series from financial data
+        revenue = self._financial_data['Revenue']
+        revenue_estimate = self._financial_data['Revenue Estimate']
+
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                revenue = revenue.freq.FY
+                revenue_estimate = revenue_estimate.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                revenue = revenue.freq.TTM
+                revenue_estimate = revenue_estimate.freq.TTM
+
+        # Apply trailing if specified (for backward compatibility)
+        if trailing:
+            revenue = revenue.rolling(trailing).mean()
+            revenue_estimate = revenue_estimate.rolling(trailing).mean()
+
+        result = earnings_model.get_revenue_vs_estimate(revenue, revenue_estimate)
+        
+        # Name based on frequency used
+        ratio_name = 'Revenue vs Estimate'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
+        return self._process_ratio_result(result_df, growth, lag, rounding)
+    
+    @handle_errors
+    def get_shares_outstanding_vs_estimate_ratio(
+            self,
+            rounding: int | None = None,
+            growth: bool = False,
+            lag: int | list[int] = 1,
+            trailing: int | None = None,
+            freq: FrequencyType = None,
+    ) -> pd.DataFrame:
+        """
+        Calculate the ratio of actual shares outstanding to estimated shares outstanding.
+        Shares outstanding is derived from net income / EPS.
+
+        Args:
+            rounding (int, optional): The number of decimals to round the results to. Defaults to 4.
+            growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
+            lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
+            trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
+
+        Required columns in financial_data:
+            - Net_Income: For actual net income
+            - Basic_EPS: For actual EPS
+            - Net_Income_Estimate: For estimated net income
+            - EPS_Estimate: For estimated EPS
+
+        Returns:
+            pd.DataFrame: Ratio of actual to estimated shares outstanding.
+        """
+        # Get required series from financial data
+        net_income = self._financial_data['Net Income']
+        eps = self._financial_data['Basic EPS']
+        net_income_estimate = self._financial_data['Net Income Estimate']
+        eps_estimate = self._financial_data['EPS Estimate']
+
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                net_income = net_income.freq.FY
+                eps = eps.freq.FY
+                net_income_estimate = net_income_estimate.freq.FY
+                eps_estimate = eps_estimate.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                net_income = net_income.freq.TTM
+                eps = eps.freq.TTM
+                net_income_estimate = net_income_estimate.freq.TTM
+                eps_estimate = eps_estimate.freq.TTM
+
+        # Apply trailing if specified (for backward compatibility)
+        if trailing:
+            net_income = net_income.rolling(trailing).mean()
+            eps = eps.rolling(trailing).mean()
+            net_income_estimate = net_income_estimate.rolling(trailing).mean()
+            eps_estimate = eps_estimate.rolling(trailing).mean()
+
+        result = earnings_model.get_shares_outstanding_vs_estimate(
+            net_income, eps, net_income_estimate, eps_estimate
+        )
+        
+        # Name based on frequency used
+        ratio_name = 'Shares Outstanding vs Estimate'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
+        return self._process_ratio_result(result_df, growth, lag, rounding)
+    
+    # Cash Flow Analysis
+    
+    @handle_errors
+    def get_free_cash_flow_average_growth_ratio(
+            self,
+            rounding: int | None = None,
+            growth: bool = False,
+            lag: int | list[int] = 1,
+            trailing: int | None = None,
+            freq: FrequencyType = None,
+    ) -> pd.DataFrame:
+        """
+        Calculate the 20-period trailing average free cash flow growth rate.
+
+        Args:
+            rounding (int, optional): The number of decimals to round the results to. Defaults to 4.
+            growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
+            lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
+            trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
+
+        Required columns in financial_data:
+            - Free_Cash_Flow: For free cash flow values
+
+        Returns:
+            pd.DataFrame: Average FCF growth rate values.
+        """
+        # Get required series from financial data
+        fcf = self._financial_data['Free Cash Flow']
+
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                fcf = fcf.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                fcf = fcf.freq.TTM
+
+        # Apply trailing if specified (for backward compatibility)
+        if trailing:
+            fcf = fcf.rolling(trailing).mean()
+
+        result = earnings_model.get_free_cash_flow_average_growth(fcf)
+        
+        # Name based on frequency used
+        ratio_name = 'Average FCF Growth (20p)'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
+        return self._process_ratio_result(result_df, growth, lag, rounding)
+    
     ################ Quality Model Ratios ###############
 
     @handle_errors
@@ -607,6 +1911,7 @@ class Ratios:
             growth: bool = False,
             lag: int | list[int] = 1,
             trailing: int | None = None,
+            freq: FrequencyType = None,
     ) -> pd.DataFrame:
         """
         Calculates and collects all Quality-related Ratios.
@@ -616,19 +1921,19 @@ class Ratios:
             growth (bool, optional): Whether to calculate the growth of the ratios. Defaults to False.
             lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
             trailing (int): Defines whether to select a trailing period.
-            E.g. when selecting 4 with quarterly data, the TTM is calculated.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
 
         Returns:
             pd.DataFrame: Quality ratios calculated based on the specified parameters.
         """
-        # Calculate all quality ratios
-        aicr = self.get_aicr_ratio(trailing=trailing)
-        profit_dip = self.get_profit_dip_ratio(trailing=trailing)
-        roic_band = self.get_roic_band_ratio(trailing=trailing)
-        cfo_band = self.get_cfo_band_ratio(trailing=trailing)
-        fcf_dip = self.get_fcf_dip_ratio(trailing=trailing)
-        negative_fcf = self.get_negative_fcf_ratio(trailing=trailing)
-        fcf_profit_band = self.get_fcf_profit_band_ratio(trailing=trailing)
+        # Calculate all quality ratios with the appropriate frequency
+        aicr = self.get_aicr_ratio(freq=freq)
+        profit_dip = self.get_profit_dip_ratio(freq=freq)
+        roic_band = self.get_roic_band_ratio(freq=freq)
+        cfo_band = self.get_cfo_band_ratio(freq=freq)
+        fcf_dip = self.get_fcf_dip_ratio(freq=freq)
+        negative_fcf = self.get_negative_fcf_ratio(freq=freq)
+        fcf_profit_band = self.get_fcf_profit_band_ratio(freq=freq)
 
         # Combine all ratios
         self._quality_ratios = pd.concat([
@@ -646,6 +1951,7 @@ class Ratios:
             growth: bool = False,
             lag: int | list[int] = 1,
             trailing: int | None = None,
+            freq: FrequencyType = None,
     ) -> pd.DataFrame:
         """
         Calculate the Annual Intrinsic Compounding Rate (AICR) ratio.
@@ -655,6 +1961,7 @@ class Ratios:
             growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
             lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
             trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
 
         Required columns in financial_data:
             - Net_Income: For net income
@@ -666,11 +1973,27 @@ class Ratios:
             pd.DataFrame: AICR ratio values.
         """
         # Get required series from financial data
-        net_income = self._financial_data['Net_Income']
-        total_assets = self._financial_data['Total_Assets']
-        total_liabilities = self._financial_data['Total_Liabilities']
-        dividend_paid = self._financial_data['Dividend_Paid']
+        net_income = self._financial_data['Net Income']
+        total_assets = self._financial_data['Total Assets']
+        total_liabilities = self._financial_data['Total Liabilities']
+        dividend_paid = self._financial_data['Dividend Paid']
 
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                net_income = net_income.freq.FY
+                total_assets = total_assets.freq.FY
+                total_liabilities = total_liabilities.freq.FY
+                dividend_paid = dividend_paid.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                net_income = net_income.freq.TTM
+                total_assets = total_assets.freq.TTM
+                total_liabilities = total_liabilities.freq.TTM
+                dividend_paid = dividend_paid.freq.TTM
+
+        # Apply trailing if specified (for backward compatibility)
         if trailing:
             net_income = net_income.rolling(trailing).mean()
             total_assets = total_assets.rolling(trailing).mean()
@@ -679,7 +2002,15 @@ class Ratios:
 
         result = quality_model.get_intrinsic_compounding_rate(net_income, total_assets, total_liabilities,
                                                               dividend_paid)
-        result_df = result.to_frame(name='Annual Intrinsic Compounding Rate')
+                                                              
+        # Name based on frequency used
+        ratio_name = 'Annual Intrinsic Compounding Rate'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
     @handle_errors
@@ -689,6 +2020,7 @@ class Ratios:
             growth: bool = False,
             lag: int | list[int] = 1,
             trailing: int | None = None,
+            freq: FrequencyType = None,
     ) -> pd.DataFrame:
         """
         Calculate the Profit Dip ratio for the last 10 years.
@@ -698,6 +2030,7 @@ class Ratios:
             growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
             lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
             trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
 
         Required columns in financial_data:
             - Revenue: For total revenue
@@ -708,14 +2041,34 @@ class Ratios:
         """
         # Get required series from financial data
         revenue = self._financial_data['Revenue']
-        total_expense = self._financial_data['Total_Expense']
+        total_expense = self._financial_data['Total Expense']
 
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                revenue = revenue.freq.FY
+                total_expense = total_expense.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                revenue = revenue.freq.TTM
+                total_expense = total_expense.freq.TTM
+
+        # Apply trailing if specified (for backward compatibility)
         if trailing:
             revenue = revenue.rolling(trailing).mean()
             total_expense = total_expense.rolling(trailing).mean()
 
         result = quality_model.get_dip_profit_last10yrs(revenue, total_expense)
-        result_df = result.to_frame(name='Profit Dip Last 10Y')
+        
+        # Name based on frequency used
+        ratio_name = 'Profit Dip Last 10Y'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
     @handle_errors
@@ -725,6 +2078,7 @@ class Ratios:
             growth: bool = False,
             lag: int | list[int] = 1,
             trailing: int | None = None,
+            freq: FrequencyType = None,
     ) -> pd.DataFrame:
         """
         Calculate the ROIC Band ratio.
@@ -734,6 +2088,7 @@ class Ratios:
             growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
             lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
             trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
 
         Required columns in financial_data:
             - EBIT: For earnings before interest and taxes
@@ -747,11 +2102,29 @@ class Ratios:
         """
         # Get required series from financial data
         ebit = self._financial_data['EBIT']
-        tax_rate = self._financial_data['Tax_Rate']
-        total_equity = self._financial_data['Total_Equity']
-        short_term_debt = self._financial_data['Short_Term_Debt']
-        long_term_debt = self._financial_data['Long_Term_Debt']
+        tax_rate = self._financial_data['Tax Rate']
+        total_equity = self._financial_data['Total Equity']
+        short_term_debt = self._financial_data['Short Term_Debt']
+        long_term_debt = self._financial_data['Long Term Debt']
 
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                ebit = ebit.freq.FY
+                tax_rate = tax_rate.freq.FY
+                total_equity = total_equity.freq.FY
+                short_term_debt = short_term_debt.freq.FY
+                long_term_debt = long_term_debt.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                ebit = ebit.freq.TTM
+                tax_rate = tax_rate.freq.TTM
+                total_equity = total_equity.freq.TTM
+                short_term_debt = short_term_debt.freq.TTM
+                long_term_debt = long_term_debt.freq.TTM
+
+        # Apply trailing if specified (for backward compatibility)
         if trailing:
             ebit = ebit.rolling(trailing).mean()
             tax_rate = tax_rate.rolling(trailing).mean()
@@ -760,6 +2133,9 @@ class Ratios:
             long_term_debt = long_term_debt.rolling(trailing).mean()
 
         result = quality_model.get_roic_band(ebit, tax_rate, total_equity, short_term_debt, long_term_debt)
+        
+        # For band ratios, we don't modify the name based on frequency since they already return a dict/DataFrame
+        # with their own column names, and they are typically time-period independent measures
         result_df = pd.DataFrame([result])  # Convert dict to DataFrame
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
@@ -900,6 +2276,7 @@ class Ratios:
             growth: bool = False,
             lag: int | list[int] = 1,
             trailing: int | None = None,
+            freq: FrequencyType = None,
     ) -> pd.DataFrame:
         """
         Calculates and collects all Valuation-related Ratios.
@@ -909,18 +2286,26 @@ class Ratios:
             growth (bool, optional): Whether to calculate the growth of the ratios. Defaults to False.
             lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
             trailing (int): Defines whether to select a trailing period.
-            E.g. when selecting 4 with quarterly data, the TTM is calculated.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
+
+        Required columns in financial_data:
+            - Basic_EPS: For earnings per share calculations
+            - WACC: For weighted average cost of capital
+            - Stock_Price: For current market price
+            - Revenue: For revenue-based valuations
+            - Operating_Cash_Flow: For cash flow-based valuations
+            Additional columns may be required by individual ratio calculations.
 
         Returns:
             pd.DataFrame: Valuation ratios calculated based on the specified parameters.
         """
-        # Calculate all valuation ratios
-        steady_state = self.get_steady_state_value_ratio(trailing=trailing)
-        fair_value = self.get_fair_value_ratio(trailing=trailing)
-        cmp_revenue = self.get_cmp_revenue_band_ratio(trailing=trailing)
-        cmp_eps = self.get_cmp_eps_band_ratio(trailing=trailing)
-        cmp_cfo = self.get_cmp_cfo_band_ratio(trailing=trailing)
-        fcf_yield = self.get_fcf_yield_ratio(trailing=trailing)
+        # Calculate all valuation ratios with the appropriate frequency
+        steady_state = self.get_steady_state_value_ratio(freq=freq)
+        fair_value = self.get_fair_value_ratio(freq=freq)
+        cmp_revenue = self.get_cmp_revenue_band_ratio(freq=freq)
+        cmp_eps = self.get_cmp_eps_band_ratio(freq=freq)
+        cmp_cfo = self.get_cmp_cfo_band_ratio(freq=freq)
+        fcf_yield = self.get_fcf_yield_ratio(freq=freq)
 
         # Combine all ratios
         self._valuation_ratios = pd.concat([
@@ -930,7 +2315,7 @@ class Ratios:
 
         # Process and return the results
         return self._process_ratio_result(self._valuation_ratios, growth, lag, rounding)
-
+    
     @handle_errors
     def get_steady_state_value_ratio(
             self,
@@ -938,6 +2323,7 @@ class Ratios:
             growth: bool = False,
             lag: int | list[int] = 1,
             trailing: int | None = None,
+            freq: FrequencyType = None,
     ) -> pd.DataFrame:
         """
         Calculate the Steady State Value ratio.
@@ -947,6 +2333,7 @@ class Ratios:
             growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
             lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
             trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
 
         Required columns in financial_data:
             - Basic_EPS: For earnings per share
@@ -957,10 +2344,24 @@ class Ratios:
             pd.DataFrame: Steady State Value ratio.
         """
         # Get required series from financial data
-        eps = self._financial_data['Basic_EPS']
+        eps = self._financial_data['Basic EPS']
         wacc = self._financial_data['WACC']
-        current_price = self._financial_data['Stock_Price'].iloc[-1]  # Get latest price
+        current_price = self._financial_data['Stock Price'].iloc[-1]  # Get latest price
 
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                eps = eps.freq.FY
+                wacc = wacc.freq.FY
+                # Current price typically doesn't get frequency treatment
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                eps = eps.freq.TTM
+                wacc = wacc.freq.TTM
+                # Current price typically doesn't get frequency treatment
+
+        # Apply trailing if specified (for backward compatibility)
         if trailing:
             eps = eps.rolling(trailing).mean()
             wacc = wacc.rolling(trailing).mean()
@@ -969,7 +2370,15 @@ class Ratios:
         current_price_series = pd.Series([current_price] * len(eps), index=eps.index)
         
         result = valuation_model.get_steady_state_value(eps, wacc, current_price_series)
-        result_df = result.to_frame(name='Steady State Value')
+        
+        # Name based on frequency used
+        ratio_name = 'Steady State Value'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
     @handle_errors
@@ -979,6 +2388,7 @@ class Ratios:
             growth: bool = False,
             lag: int | list[int] = 1,
             trailing: int | None = None,
+            freq: FrequencyType = None,
     ) -> pd.DataFrame:
         """
         Calculate the Fair Value vs Current Market Price ratio.
@@ -988,6 +2398,7 @@ class Ratios:
             growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
             lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
             trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
 
         Required columns in financial_data:
             - Net_Income: For net income
@@ -1000,12 +2411,30 @@ class Ratios:
             pd.DataFrame: Fair Value ratio values.
         """
         # Get required series from financial data
-        net_income = self._financial_data['Net_Income']
-        total_assets = self._financial_data['Total_Assets']
-        total_liabilities = self._financial_data['Total_Liabilities']
-        eps = self._financial_data['Basic_EPS']
-        current_price = self._financial_data['Stock_Price']
+        net_income = self._financial_data['Net Income']
+        total_assets = self._financial_data['Total Assets']
+        total_liabilities = self._financial_data['Total Liabilities']
+        eps = self._financial_data['Basic EPS']
+        current_price = self._financial_data['Stock Price']
 
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                net_income = net_income.freq.FY
+                total_assets = total_assets.freq.FY
+                total_liabilities = total_liabilities.freq.FY
+                eps = eps.freq.FY
+                # Stock price typically doesn't get frequency treatment
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                net_income = net_income.freq.TTM
+                total_assets = total_assets.freq.TTM
+                total_liabilities = total_liabilities.freq.TTM
+                eps = eps.freq.TTM
+                # Stock price typically doesn't get frequency treatment
+
+        # Apply trailing if specified (for backward compatibility)
         if trailing:
             net_income = net_income.rolling(trailing).mean()
             total_assets = total_assets.rolling(trailing).mean()
@@ -1016,7 +2445,15 @@ class Ratios:
         result = valuation_model.get_fair_value_vs_market_price(
             net_income, total_assets, total_liabilities, eps, current_price
         )
-        result_df = result.to_frame(name='Fair Value vs Market Price')
+        
+        # Name based on frequency used
+        ratio_name = 'Fair Value vs Market Price'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
     @handle_errors
@@ -1026,6 +2463,7 @@ class Ratios:
             growth: bool = False,
             lag: int | list[int] = 1,
             trailing: int | None = None,
+            freq: FrequencyType = None,
     ) -> pd.DataFrame:
         """
         Calculate the Price to Revenue Band ratio for last 3 years.
@@ -1041,6 +2479,7 @@ class Ratios:
             growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
             lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
             trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
 
         Required columns in financial_data:
             - Stock_Price: For stock price values
@@ -1052,10 +2491,24 @@ class Ratios:
             Returns NaN for periods with zero revenue or shares, or insufficient data.
         """
         # Get required series from financial data
-        price = self._financial_data['Stock_Price']
+        price = self._financial_data['Stock Price']
         revenue = self._financial_data['Revenue']
-        shares_outstanding = self._financial_data['Shares_Outstanding']
+        shares_outstanding = self._financial_data['Shares Outstanding']
 
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                revenue = revenue.freq.FY
+                shares_outstanding = shares_outstanding.freq.FY
+                # Stock price typically doesn't get frequency treatment
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                revenue = revenue.freq.TTM
+                shares_outstanding = shares_outstanding.freq.TTM
+                # Stock price typically doesn't get frequency treatment
+
+        # Apply trailing if specified (for backward compatibility)
         if trailing:
             price = price.rolling(trailing).mean()
             revenue = revenue.rolling(trailing).mean()
@@ -1063,11 +2516,25 @@ class Ratios:
 
         try:
             result = valuation_model.get_price_to_revenue_band(price, revenue, shares_outstanding)
-            result_df = result.to_frame(name='Price to Revenue Band')
+            
+            # Name based on frequency used
+            ratio_name = 'Price to Revenue Band'
+            if freq == FrequencyType.TTM:
+                ratio_name = 'TTM ' + ratio_name
+            elif freq == FrequencyType.FY:
+                ratio_name = 'FY ' + ratio_name
+                
+            result_df = result.to_frame(name=ratio_name)
             return self._process_ratio_result(result_df, growth, lag, rounding)
         except ValueError as e:
             # Handle insufficient data error
-            return pd.DataFrame(columns=['Price to Revenue Band'])
+            ratio_name = 'Price to Revenue Band'
+            if freq == FrequencyType.TTM:
+                ratio_name = 'TTM ' + ratio_name
+            elif freq == FrequencyType.FY:
+                ratio_name = 'FY ' + ratio_name
+                
+            return pd.DataFrame(columns=[ratio_name])
 
     @handle_errors
     def get_cmp_eps_band_ratio(
@@ -1076,6 +2543,7 @@ class Ratios:
             growth: bool = False,
             lag: int | list[int] = 1,
             trailing: int | None = None,
+            freq: FrequencyType = None,
     ) -> pd.DataFrame:
         """
         Calculate the Price to Earnings (P/E) Band ratio.
@@ -1089,6 +2557,7 @@ class Ratios:
             growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
             lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
             trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
 
         Required columns in financial_data:
             - Stock_Price: For stock price values
@@ -1099,20 +2568,46 @@ class Ratios:
             Returns NaN for periods with zero EPS, or insufficient data.
         """
         # Get required series from financial data
-        price = self._financial_data['Stock_Price']
-        eps = self._financial_data['Basic_EPS']
+        price = self._financial_data['Stock Price']
+        eps = self._financial_data['Basic EPS']
 
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                eps = eps.freq.FY
+                # Stock price typically doesn't get frequency treatment
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                eps = eps.freq.TTM
+                # Stock price typically doesn't get frequency treatment
+
+        # Apply trailing if specified (for backward compatibility)
         if trailing:
             price = price.rolling(trailing).mean()
             eps = eps.rolling(trailing).mean()
 
         try:
             result = valuation_model.get_price_to_eps_band(price, eps)
-            result_df = result.to_frame(name='Price to Earnings Band')
+            
+            # Name based on frequency used
+            ratio_name = 'Price to Earnings Band'
+            if freq == FrequencyType.TTM:
+                ratio_name = 'TTM ' + ratio_name
+            elif freq == FrequencyType.FY:
+                ratio_name = 'FY ' + ratio_name
+                
+            result_df = result.to_frame(name=ratio_name)
             return self._process_ratio_result(result_df, growth, lag, rounding)
         except ValueError as e:
             # Handle insufficient data error
-            return pd.DataFrame(columns=['Price to Earnings Band'])
+            ratio_name = 'Price to Earnings Band'
+            if freq == FrequencyType.TTM:
+                ratio_name = 'TTM ' + ratio_name
+            elif freq == FrequencyType.FY:
+                ratio_name = 'FY ' + ratio_name
+                
+            return pd.DataFrame(columns=[ratio_name])
 
     @handle_errors
     def get_cmp_cfo_band_ratio(
@@ -1121,6 +2616,7 @@ class Ratios:
             growth: bool = False,
             lag: int | list[int] = 1,
             trailing: int | None = None,
+            freq: FrequencyType = None,
     ) -> pd.DataFrame:
         """
         Calculate the Price to Cash Flow from Operations (P/CFO) Band ratio.
@@ -1136,6 +2632,7 @@ class Ratios:
             growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
             lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
             trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
 
         Required columns in financial_data:
             - Stock_Price: For stock price values
@@ -1147,10 +2644,24 @@ class Ratios:
             Returns NaN for periods with zero CFO or shares, or insufficient data.
         """
         # Get required series from financial data
-        price = self._financial_data['Stock_Price']
-        cfo = self._financial_data['Operating_Cash_Flow']
-        shares_outstanding = self._financial_data['Shares_Outstanding']
+        price = self._financial_data['Stock Price']
+        cfo = self._financial_data['Operating Cash_Flow']
+        shares_outstanding = self._financial_data['Shares Outstanding']
 
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                cfo = cfo.freq.FY
+                shares_outstanding = shares_outstanding.freq.FY
+                # Stock price typically doesn't get frequency treatment
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                cfo = cfo.freq.TTM
+                shares_outstanding = shares_outstanding.freq.TTM
+                # Stock price typically doesn't get frequency treatment
+
+        # Apply trailing if specified (for backward compatibility)
         if trailing:
             price = price.rolling(trailing).mean()
             cfo = cfo.rolling(trailing).mean()
@@ -1158,11 +2669,25 @@ class Ratios:
 
         try:
             result = valuation_model.get_price_to_cfo_band(price, cfo, shares_outstanding)
-            result_df = result.to_frame(name='Price to CFO Band')
+            
+            # Name based on frequency used
+            ratio_name = 'Price to CFO Band'
+            if freq == FrequencyType.TTM:
+                ratio_name = 'TTM ' + ratio_name
+            elif freq == FrequencyType.FY:
+                ratio_name = 'FY ' + ratio_name
+                
+            result_df = result.to_frame(name=ratio_name)
             return self._process_ratio_result(result_df, growth, lag, rounding)
         except ValueError as e:
             # Handle insufficient data error
-            return pd.DataFrame(columns=['Price to CFO Band'])
+            ratio_name = 'Price to CFO Band'
+            if freq == FrequencyType.TTM:
+                ratio_name = 'TTM ' + ratio_name
+            elif freq == FrequencyType.FY:
+                ratio_name = 'FY ' + ratio_name
+                
+            return pd.DataFrame(columns=[ratio_name])
 
     @handle_errors
     def get_fcf_yield_ratio(
@@ -1171,6 +2696,7 @@ class Ratios:
             growth: bool = False,
             lag: int | list[int] = 1,
             trailing: int | None = None,
+            freq: FrequencyType = None,
     ) -> pd.DataFrame:
         """
         Calculate the Free Cash Flow (FCF) Yield ratio.
@@ -1186,6 +2712,7 @@ class Ratios:
             growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
             lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
             trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
 
         Required columns in financial_data:
             - Operating_Cash_Flow: For cash flow from operations
@@ -1198,19 +2725,45 @@ class Ratios:
             Returns NaN for periods with zero market cap or insufficient data.
         """
         # Get required series from financial data
-        cfo = self._financial_data['Operating_Cash_Flow']
-        capex = self._financial_data['Capital_Expenditure']
-        fcf = cfo - capex  # Calculate Free Cash Flow
-        price = self._financial_data['Stock_Price']
-        shares_outstanding = self._financial_data['Shares_Outstanding']
+        cfo = self._financial_data['Operating Cash_Flow']
+        capex = self._financial_data['Capital Expenditure']
+        shares_outstanding = self._financial_data['Shares Outstanding']
+        price = self._financial_data['Stock Price']
+        
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                cfo = cfo.freq.FY
+                capex = capex.freq.FY
+                shares_outstanding = shares_outstanding.freq.FY
+                # Stock price typically doesn't get frequency treatment
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                cfo = cfo.freq.TTM
+                capex = capex.freq.TTM
+                shares_outstanding = shares_outstanding.freq.TTM
+                # Stock price typically doesn't get frequency treatment
+        
+        # Calculate Free Cash Flow after frequency adjustments
+        fcf = cfo - capex
 
+        # Apply trailing if specified (for backward compatibility)
         if trailing:
             fcf = fcf.rolling(trailing).mean()
             price = price.rolling(trailing).mean()
             shares_outstanding = shares_outstanding.rolling(trailing).mean()
 
         result = valuation_model.get_fcf_yield(fcf, price, shares_outstanding)
-        result_df = result.to_frame(name='FCF Yield')
+        
+        # Name based on frequency used
+        ratio_name = 'FCF Yield'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
 

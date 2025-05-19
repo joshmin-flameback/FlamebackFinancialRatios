@@ -6,11 +6,11 @@ with open("README.md", "r", encoding="utf-8") as fh:
 setup(
     name="flameback-financial-ratios",
     version="0.1.0",
-    author="Flameback",
+    author="Flameback Capital Pvt Ltd",
     description="A comprehensive financial ratios analysis package",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/FlamebackFinacialRatios",
+    url="https://github.com/joshmin-flameback/FlamebackFinancialRatios.git",
     packages=find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
