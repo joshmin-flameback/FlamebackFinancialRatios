@@ -392,7 +392,7 @@ class Ratios:
         current_liabilities = self._financial_data['Total Current Liabilities']
         total_assets = self._financial_data['Total Assets']
         ebit = self._financial_data['EBIT']
-        diluted_shares = self._financial_data['Diluted Shares Outstanding']
+        diluted_shares = self._financial_data['Shares Outstanding']
         revenue = self._financial_data['Revenue']
         total_liabilities = self._financial_data['Total Liabilities']
         retained_earnings = self._financial_data['Retained Earnings']
@@ -458,6 +458,7 @@ class Ratios:
             growth: bool = False,
             lag: int | list[int] = 1,
             trailing: int | None = None,
+            days: int | float | None = None,
             freq: FrequencyType = None,
     ) -> pd.DataFrame:
         """
@@ -835,7 +836,7 @@ class Ratios:
         result = earnings_model.get_return_on_equity(net_income, shareholders_equity)
         
         # Name based on frequency used
-        ratio_name = 'ROE'
+        ratio_name = 'Return on Equity'
         if freq == FrequencyType.TTM:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
@@ -1649,7 +1650,7 @@ class Ratios:
         result = earnings_model.get_return_on_assets(net_income, total_assets)
         
         # Name based on frequency used
-        ratio_name = 'ROA'
+        ratio_name = 'Return on Assets'
         if freq == FrequencyType.TTM:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
@@ -1911,6 +1912,7 @@ class Ratios:
             growth: bool = False,
             lag: int | list[int] = 1,
             trailing: int | None = None,
+            days: int | float | None = None,
             freq: FrequencyType = None,
     ) -> pd.DataFrame:
         """
@@ -1976,7 +1978,7 @@ class Ratios:
         net_income = self._financial_data['Net Income']
         total_assets = self._financial_data['Total Assets']
         total_liabilities = self._financial_data['Total Liabilities']
-        dividend_paid = self._financial_data['Dividend Paid']
+        dividend_paid = self._financial_data['Dividends Paid']
 
         # Apply frequency transformation if requested
         if freq is not None:
@@ -2041,7 +2043,7 @@ class Ratios:
         """
         # Get required series from financial data
         revenue = self._financial_data['Revenue']
-        total_expense = self._financial_data['Total Expense']
+        total_expense = self._financial_data['Total Expenses']
 
         # Apply frequency transformation if requested
         if freq is not None:
@@ -2059,7 +2061,7 @@ class Ratios:
             revenue = revenue.rolling(trailing).mean()
             total_expense = total_expense.rolling(trailing).mean()
 
-        result = quality_model.get_dip_profit_last10yrs(revenue, total_expense)
+        result = quality_model.get_dips_in_profit_over_10yrs(revenue, total_expense)
         
         # Name based on frequency used
         ratio_name = 'Profit Dip Last 10Y'
@@ -2101,42 +2103,36 @@ class Ratios:
             pd.DataFrame: ROIC band ratio values.
         """
         # Get required series from financial data
-        ebit = self._financial_data['EBIT']
-        tax_rate = self._financial_data['Tax Rate']
-        total_equity = self._financial_data['Total Equity']
-        short_term_debt = self._financial_data['Short Term_Debt']
-        long_term_debt = self._financial_data['Long Term Debt']
+        # Using calculated fields from field_normalizer
+        invested_capital = self._financial_data['Invested Capital']
+        nopat = self._financial_data['NOPAT']  # Net Operating Profit After Tax
 
         # Apply frequency transformation if requested
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                ebit = ebit.freq.FY
-                tax_rate = tax_rate.freq.FY
-                total_equity = total_equity.freq.FY
-                short_term_debt = short_term_debt.freq.FY
-                long_term_debt = long_term_debt.freq.FY
+                invested_capital = invested_capital.freq.FY
+                nopat = nopat.freq.FY
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
-                ebit = ebit.freq.TTM
-                tax_rate = tax_rate.freq.TTM
-                total_equity = total_equity.freq.TTM
-                short_term_debt = short_term_debt.freq.TTM
-                long_term_debt = long_term_debt.freq.TTM
+                invested_capital = invested_capital.freq.TTM
+                nopat = nopat.freq.TTM
 
         # Apply trailing if specified (for backward compatibility)
         if trailing:
-            ebit = ebit.rolling(trailing).mean()
-            tax_rate = tax_rate.rolling(trailing).mean()
-            total_equity = total_equity.rolling(trailing).mean()
-            short_term_debt = short_term_debt.rolling(trailing).mean()
-            long_term_debt = long_term_debt.rolling(trailing).mean()
+            invested_capital = invested_capital.rolling(trailing).mean()
+            nopat = nopat.rolling(trailing).mean()
 
-        result = quality_model.get_roic_band(ebit, tax_rate, total_equity, short_term_debt, long_term_debt)
-        
-        # For band ratios, we don't modify the name based on frequency since they already return a dict/DataFrame
-        # with their own column names, and they are typically time-period independent measures
-        result_df = pd.DataFrame([result])  # Convert dict to DataFrame
+        result = quality_model.get_roic_band(invested_capital,nopat)
+
+        # Name based on frequency used
+        ratio_name = 'ROIC band'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+
+        result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
     @handle_errors
@@ -2146,6 +2142,7 @@ class Ratios:
             growth: bool = False,
             lag: int | list[int] = 1,
             trailing: int | None = None,
+            freq: FrequencyType = None,
     ) -> pd.DataFrame:
         """
         Calculate the CFO Band ratio.
@@ -2155,25 +2152,36 @@ class Ratios:
             growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
             lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
             trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
 
         Returns:
             pd.DataFrame: CFO band ratio values.
         """
-        cfo = self._cash_flow_statement[self._cash_flow_statement['full_name'] == 'Cash Flow from Operations']['value']
-        capex = self._cash_flow_statement[self._cash_flow_statement['full_name'] == 'Capital Expenditure']['value']
-        total_debt = self._balance_sheet_statement[self._balance_sheet_statement['full_name'] == 'Total Debt']['value']
+        cfo = self._financial_data['Cash Flow from Operations']
+
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                cfo = cfo.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                cfo = cfo.freq.TTM
 
         if trailing:
             cfo = cfo.T.rolling(trailing).mean().T
-            capex = capex.T.rolling(trailing).mean().T
-            total_debt = total_debt.T.rolling(trailing).mean().T
 
-        # Get start and end series for debt
-        total_debt_start = total_debt.shift(1)
-        total_debt_end = total_debt
-
-        result = quality_model.get_cfo_band(cfo, capex, total_debt_start, total_debt_end)
-        return self._process_ratio_result(result, growth, lag, rounding)
+        result = quality_model.get_cfo_band(cfo)
+        
+        # Name based on frequency used
+        ratio_name = 'CFO Band'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
+        return self._process_ratio_result(result_df, growth, lag, rounding)
 
     @handle_errors
     def get_fcf_dip_ratio(
@@ -2182,6 +2190,7 @@ class Ratios:
             growth: bool = False,
             lag: int | list[int] = 1,
             trailing: int | None = None,
+            freq: FrequencyType = None,
     ) -> pd.DataFrame:
         """
         Calculate the FCF Dip ratio for the last 10 years.
@@ -2191,17 +2200,35 @@ class Ratios:
             growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
             lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
             trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
 
         Returns:
             pd.DataFrame: FCF dip ratio values.
         """
-        fcf = self._cash_flow_statement[self._cash_flow_statement['full_name'] == 'Free Cash Flow']['value']
+        fcf = self._financial_data['Free Cash Flow']
+        
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                fcf = fcf.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                fcf = fcf.freq.TTM
 
         if trailing:
             fcf = fcf.T.rolling(trailing).mean().T
 
-        result = quality_model.get_dip_fcf_last10yrs(fcf)
-        result_df = result.to_frame(name='FCF Dip Last 10Y')
+        result = quality_model.get_negative_dips_in_fcf_over_10yrs(fcf)
+        
+        # Name based on frequency used
+        ratio_name = 'FCF Dip Last 10Y'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
     @handle_errors
@@ -2211,6 +2238,7 @@ class Ratios:
             growth: bool = False,
             lag: int | list[int] = 1,
             trailing: int | None = None,
+            freq: FrequencyType = None,
     ) -> pd.DataFrame:
         """
         Calculate the Negative FCF ratio for the last 10 years.
@@ -2220,17 +2248,35 @@ class Ratios:
             growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
             lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
             trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
 
         Returns:
             pd.DataFrame: Negative FCF ratio values.
         """
-        fcf = self._cash_flow_statement[self._cash_flow_statement['full_name'] == 'Free Cash Flow']['value']
+        fcf = self._financial_data['Free Cash Flow']
+        
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                fcf = fcf.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                fcf = fcf.freq.TTM
 
         if trailing:
             fcf = fcf.T.rolling(trailing).mean().T
 
-        result = quality_model.get_no_negative_fcf_last10yrs(fcf)
-        result_df = result.to_frame(name='Negative FCF Last 10Y')
+        result = quality_model.get_negative_fcf_years(fcf)
+        
+        # Name based on frequency used
+        ratio_name = 'Negative FCF Last 10Y'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
     @handle_errors
@@ -2240,6 +2286,7 @@ class Ratios:
             growth: bool = False,
             lag: int | list[int] = 1,
             trailing: int | None = None,
+            freq: FrequencyType = None,
     ) -> pd.DataFrame:
         """
         Calculate the FCF to Profit Band ratio.
@@ -2249,21 +2296,39 @@ class Ratios:
             growth (bool, optional): Whether to calculate the growth of the ratio. Defaults to False.
             lag (int | str, optional): The lag to use for the growth calculation. Defaults to 1.
             trailing (int): Defines whether to select a trailing period.
+            freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
 
         Returns:
             pd.DataFrame: FCF to profit band ratio values.
         """
-        fcf = self._cash_flow_statement[self._cash_flow_statement['full_name'] == 'Free Cash Flow']['value']
-        revenue = self._income_statement[self._income_statement['full_name'] == 'Revenue']['value']
-        total_expenses = self._income_statement[self._income_statement['full_name'] == 'Total Expense']['value']
-
+        fcf = self._financial_data['Free Cash Flow']
+        net_profit = self._financial_data['Net Profit']
+        
+        # Apply frequency transformation if requested
+        if freq is not None:
+            if freq == FrequencyType.FY:
+                # Apply fiscal year calculations
+                fcf = fcf.freq.FY
+                net_profit = net_profit.freq.FY
+            elif freq == FrequencyType.TTM:
+                # Apply trailing twelve months calculations
+                fcf = fcf.freq.TTM
+                net_profit = net_profit.freq.TTM
+                
         if trailing:
             fcf = fcf.T.rolling(trailing).mean().T
-            revenue = revenue.T.rolling(trailing).mean().T
-            total_expenses = total_expenses.T.rolling(trailing).mean().T
+            net_profit = net_profit.T.rolling(trailing).mean().T
 
-        result = quality_model.get_fcf_profit_band(fcf, revenue, total_expenses)
-        result_df = result.to_frame(name='FCF to Profit Band')
+        result = quality_model.get_fcf_to_net_profit_band(fcf, net_profit)
+        
+        # Name based on frequency used
+        ratio_name = 'FCF to Profit Band'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+            
+        result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
     ###################### Valuation Model Ratios #######################
@@ -2276,6 +2341,7 @@ class Ratios:
             growth: bool = False,
             lag: int | list[int] = 1,
             trailing: int | None = None,
+            days: int | float | None = None,
             freq: FrequencyType = None,
     ) -> pd.DataFrame:
         """
@@ -2300,8 +2366,8 @@ class Ratios:
             pd.DataFrame: Valuation ratios calculated based on the specified parameters.
         """
         # Calculate all valuation ratios with the appropriate frequency
-        steady_state = self.get_steady_state_value_ratio(freq=freq)
-        fair_value = self.get_fair_value_ratio(freq=freq)
+        steady_state = self.get_steady_state_value_ratio()
+        fair_value = self.get_fair_value_ratio()
         cmp_revenue = self.get_cmp_revenue_band_ratio(freq=freq)
         cmp_eps = self.get_cmp_eps_band_ratio(freq=freq)
         cmp_cfo = self.get_cmp_cfo_band_ratio(freq=freq)
@@ -2645,7 +2711,7 @@ class Ratios:
         """
         # Get required series from financial data
         price = self._financial_data['Stock Price']
-        cfo = self._financial_data['Operating Cash_Flow']
+        cfo = self._financial_data['Operating Cash Flow']
         shares_outstanding = self._financial_data['Shares Outstanding']
 
         # Apply frequency transformation if requested
@@ -2725,7 +2791,7 @@ class Ratios:
             Returns NaN for periods with zero market cap or insufficient data.
         """
         # Get required series from financial data
-        cfo = self._financial_data['Operating Cash_Flow']
+        cfo = self._financial_data['Operating Cash Flow']
         capex = self._financial_data['Capital Expenditure']
         shares_outstanding = self._financial_data['Shares Outstanding']
         price = self._financial_data['Stock Price']
