@@ -63,19 +63,19 @@ RATIO_FIELD_DEPENDENCIES = {
                                'Total Debt', 'Total Current Assets', 'Total Current Liabilities', 
                                'Shares Outstanding', 'Gross Margin', 'Total Assets Turnover',
                                'Revenue Estimate', 'Net Income Estimate', 'EPS Estimate',
-                               'Net Profit'},
+                               'Net Income'},
                                
     # Quality Ratios
-    'get_profit_dip_ratio': {'Revenue', 'Total Expenses'},
+    'get_profit_dip_ratio': {'Net Income'},
     'get_roic_band_ratio': {'Invested Capital', 'NOPAT'},
     'get_aicr_ratio': {'Net Income', 'Total Assets', 'Total Liabilities', 'Dividends Paid'},
     'get_cfo_band_ratio': {'Cash Flow from Operations'},
     'get_fcf_dip_ratio': {'Free Cash Flow'},
     'get_negative_fcf_ratio': {'Free Cash Flow'},
-    'get_fcf_profit_band_ratio': {'Free Cash Flow', 'Net Profit'},
-    'collect_quality_ratios': {'Revenue', 'Total Expenses', 'Invested Capital', 'NOPAT', 
-                               'Net Income', 'Total Assets', 'Total Liabilities', 'Dividends Paid',
-                               'Cash Flow from Operations', 'Free Cash Flow', 'Net Profit'},
+    'get_fcf_profit_band_ratio': {'Free Cash Flow', 'Net Income'},
+    'collect_quality_ratios': {'Invested Capital', 'NOPAT',
+                               'Total Assets', 'Total Liabilities', 'Dividends Paid',
+                               'Cash Flow from Operations', 'Free Cash Flow', 'Net Income'},
     
     # Valuation Ratios
     'get_steady_state_value_ratio': {'Basic EPS', 'WACC', 'Stock Price'},

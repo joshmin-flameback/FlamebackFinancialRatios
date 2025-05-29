@@ -122,7 +122,7 @@ def get_fair_value_vs_market_price(
     
     pe_ratio = current_price / safe_eps
     # Use 3-year average for historical comparison , 12 Quarters
-    avg_pe = pe_ratio.rolling(window=12, min_periods=1).mean()  # Require at least 1 quarter of data
+    avg_pe = pe_ratio.rolling(window=3, min_periods=1).mean()  # Require at least 1 quarter of data
 
     # Calculate fair value ratio with NaN handling
     fair_value_ratio = (

@@ -85,8 +85,7 @@ def get_intrinsic_compounding_rate(
 # ----------------------
 
 def get_dips_in_profit_over_10yrs(
-        revenue: pd.Series,
-        total_expense: pd.Series
+        net_profit: pd.Series,
 ) -> pd.Series:
     """
     Count the number of times the annual profit dips by more than 10% over a 10-year period.
@@ -96,23 +95,20 @@ def get_dips_in_profit_over_10yrs(
     Frequent large dips may signal operational issues or cyclical business risks.
 
     Args:
-        revenue (pd.Series): Time series of revenue values
-        total_expense (pd.Series): Time series of total expense values
+        net_profit (pd.Series): Time series of Net Profit
 
     Returns:
         pd.Series: Time series of cumulative dip counts. Returns NaN for periods with
                   insufficient data (less than 10 years).
     """
-    # Calculate profit and handle NaN values
-    profit_series = revenue - total_expense
 
     # Initialize result series with NaN
-    result = pd.Series(np.nan, index=profit_series.index)
+    result = pd.Series(np.nan, index=net_profit.index)
 
     # Only calculate for periods with enough data
-    if len(profit_series) >= 10:
+    if len(net_profit) >= 10:
         # Calculate year-over-year change
-        profit_change = profit_series.pct_change(periods=1) * 100
+        profit_change = net_profit.pct_change(periods=1) * 100
         
         # Count large dips and handle NaN values
         large_dips = (profit_change < -10).fillna(False).astype(int)

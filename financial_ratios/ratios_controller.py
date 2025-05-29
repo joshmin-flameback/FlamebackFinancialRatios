@@ -91,9 +91,7 @@ class Ratios:
         self,
         rounding: int | None = None,
         growth: bool = False,
-        lag: int | list[int] = 1,
-        trailing: int | None = None,
-        days: int | float | None = None,
+        lag: int | list[int] = 1
     ) -> pd.DataFrame:
         """
         Calculates and collects all Financial Health Ratios.
@@ -115,8 +113,6 @@ class Ratios:
         Returns:
             pd.DataFrame: Financial health ratios calculated based on the specified parameters.
         """
-        if not days:
-            days = 365 / 4 if self._quarterly else 365
 
         # Calculate all financial health ratios
         debt_equity = self.get_debt_to_equity_ratio(freq=FrequencyType.FY)
@@ -1912,8 +1908,7 @@ class Ratios:
             growth: bool = False,
             lag: int | list[int] = 1,
             trailing: int | None = None,
-            days: int | float | None = None,
-            freq: FrequencyType = None,
+            days: int | float | None = None
     ) -> pd.DataFrame:
         """
         Calculates and collects all Quality-related Ratios.
@@ -1929,13 +1924,13 @@ class Ratios:
             pd.DataFrame: Quality ratios calculated based on the specified parameters.
         """
         # Calculate all quality ratios with the appropriate frequency
-        aicr = self.get_aicr_ratio(freq=freq)
-        profit_dip = self.get_profit_dip_ratio(freq=freq)
-        roic_band = self.get_roic_band_ratio(freq=freq)
-        cfo_band = self.get_cfo_band_ratio(freq=freq)
-        fcf_dip = self.get_fcf_dip_ratio(freq=freq)
-        negative_fcf = self.get_negative_fcf_ratio(freq=freq)
-        fcf_profit_band = self.get_fcf_profit_band_ratio(freq=freq)
+        aicr = self.get_aicr_ratio(freq=FrequencyType.FY)
+        profit_dip = self.get_profit_dip_ratio(freq=FrequencyType.FY)
+        roic_band = self.get_roic_band_ratio(freq=FrequencyType.FY)
+        cfo_band = self.get_cfo_band_ratio(freq=FrequencyType.FY)
+        fcf_dip = self.get_fcf_dip_ratio(freq=FrequencyType.FY)
+        negative_fcf = self.get_negative_fcf_ratio(freq=FrequencyType.FY)
+        fcf_profit_band = self.get_fcf_profit_band_ratio(freq=FrequencyType.FY)
 
         # Combine all ratios
         self._quality_ratios = pd.concat([
@@ -2042,26 +2037,22 @@ class Ratios:
             pd.DataFrame: Profit dip ratio values.
         """
         # Get required series from financial data
-        revenue = self._financial_data['Revenue']
-        total_expense = self._financial_data['Total Expenses']
+        net_profit = self._financial_data['Net Income']
 
         # Apply frequency transformation if requested
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                revenue = revenue.freq.FY
-                total_expense = total_expense.freq.FY
+                net_profit = net_profit.freq.FY
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
-                revenue = revenue.freq.TTM
-                total_expense = total_expense.freq.TTM
+                net_profit = net_profit.freq.TTM
 
         # Apply trailing if specified (for backward compatibility)
         if trailing:
-            revenue = revenue.rolling(trailing).mean()
-            total_expense = total_expense.rolling(trailing).mean()
+            net_profit = net_profit.rolling(trailing).mean()
 
-        result = quality_model.get_dips_in_profit_over_10yrs(revenue, total_expense)
+        result = quality_model.get_dips_in_profit_over_10yrs(net_profit)
         
         # Name based on frequency used
         ratio_name = 'Profit Dip Last 10Y'
@@ -2302,7 +2293,7 @@ class Ratios:
             pd.DataFrame: FCF to profit band ratio values.
         """
         fcf = self._financial_data['Free Cash Flow']
-        net_profit = self._financial_data['Net Profit']
+        net_profit = self._financial_data['Net Income']
         
         # Apply frequency transformation if requested
         if freq is not None:
@@ -2367,11 +2358,11 @@ class Ratios:
         """
         # Calculate all valuation ratios with the appropriate frequency
         steady_state = self.get_steady_state_value_ratio()
-        fair_value = self.get_fair_value_ratio()
-        cmp_revenue = self.get_cmp_revenue_band_ratio(freq=freq)
-        cmp_eps = self.get_cmp_eps_band_ratio(freq=freq)
-        cmp_cfo = self.get_cmp_cfo_band_ratio(freq=freq)
-        fcf_yield = self.get_fcf_yield_ratio(freq=freq)
+        fair_value = self.get_fair_value_ratio(freq=FrequencyType.FY)
+        cmp_revenue = self.get_cmp_revenue_band_ratio(freq=FrequencyType.FY)
+        cmp_eps = self.get_cmp_eps_band_ratio(freq=FrequencyType.FY)
+        cmp_cfo = self.get_cmp_cfo_band_ratio(freq=FrequencyType.FY)
+        fcf_yield = self.get_fcf_yield_ratio(freq=FrequencyType.FY)
 
         # Combine all ratios
         self._valuation_ratios = pd.concat([
@@ -2580,27 +2571,17 @@ class Ratios:
             revenue = revenue.rolling(trailing).mean()
             shares_outstanding = shares_outstanding.rolling(trailing).mean()
 
-        try:
-            result = valuation_model.get_price_to_revenue_band(price, revenue, shares_outstanding)
-            
-            # Name based on frequency used
-            ratio_name = 'Price to Revenue Band'
-            if freq == FrequencyType.TTM:
-                ratio_name = 'TTM ' + ratio_name
-            elif freq == FrequencyType.FY:
-                ratio_name = 'FY ' + ratio_name
-                
-            result_df = result.to_frame(name=ratio_name)
-            return self._process_ratio_result(result_df, growth, lag, rounding)
-        except ValueError as e:
-            # Handle insufficient data error
-            ratio_name = 'Price to Revenue Band'
-            if freq == FrequencyType.TTM:
-                ratio_name = 'TTM ' + ratio_name
-            elif freq == FrequencyType.FY:
-                ratio_name = 'FY ' + ratio_name
-                
-            return pd.DataFrame(columns=[ratio_name])
+        result = valuation_model.get_price_to_revenue_band(price, revenue, shares_outstanding)
+
+        # Name based on frequency used
+        ratio_name = 'Price to Revenue Band'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+
+        result_df = result.to_frame(name=ratio_name)
+        return self._process_ratio_result(result_df, growth, lag, rounding)
 
     @handle_errors
     def get_cmp_eps_band_ratio(
@@ -2653,27 +2634,17 @@ class Ratios:
             price = price.rolling(trailing).mean()
             eps = eps.rolling(trailing).mean()
 
-        try:
-            result = valuation_model.get_price_to_eps_band(price, eps)
-            
-            # Name based on frequency used
-            ratio_name = 'Price to Earnings Band'
-            if freq == FrequencyType.TTM:
-                ratio_name = 'TTM ' + ratio_name
-            elif freq == FrequencyType.FY:
-                ratio_name = 'FY ' + ratio_name
-                
-            result_df = result.to_frame(name=ratio_name)
-            return self._process_ratio_result(result_df, growth, lag, rounding)
-        except ValueError as e:
-            # Handle insufficient data error
-            ratio_name = 'Price to Earnings Band'
-            if freq == FrequencyType.TTM:
-                ratio_name = 'TTM ' + ratio_name
-            elif freq == FrequencyType.FY:
-                ratio_name = 'FY ' + ratio_name
-                
-            return pd.DataFrame(columns=[ratio_name])
+        result = valuation_model.get_price_to_eps_band(price, eps)
+
+        # Name based on frequency used
+        ratio_name = 'Price to Earnings Band'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+
+        result_df = result.to_frame(name=ratio_name)
+        return self._process_ratio_result(result_df, growth, lag, rounding)
 
     @handle_errors
     def get_cmp_cfo_band_ratio(
@@ -2733,27 +2704,17 @@ class Ratios:
             cfo = cfo.rolling(trailing).mean()
             shares_outstanding = shares_outstanding.rolling(trailing).mean()
 
-        try:
-            result = valuation_model.get_price_to_cfo_band(price, cfo, shares_outstanding)
-            
-            # Name based on frequency used
-            ratio_name = 'Price to CFO Band'
-            if freq == FrequencyType.TTM:
-                ratio_name = 'TTM ' + ratio_name
-            elif freq == FrequencyType.FY:
-                ratio_name = 'FY ' + ratio_name
-                
-            result_df = result.to_frame(name=ratio_name)
-            return self._process_ratio_result(result_df, growth, lag, rounding)
-        except ValueError as e:
-            # Handle insufficient data error
-            ratio_name = 'Price to CFO Band'
-            if freq == FrequencyType.TTM:
-                ratio_name = 'TTM ' + ratio_name
-            elif freq == FrequencyType.FY:
-                ratio_name = 'FY ' + ratio_name
-                
-            return pd.DataFrame(columns=[ratio_name])
+        result = valuation_model.get_price_to_cfo_band(price, cfo, shares_outstanding)
+
+        # Name based on frequency used
+        ratio_name = 'Price to CFO Band'
+        if freq == FrequencyType.TTM:
+            ratio_name = 'TTM ' + ratio_name
+        elif freq == FrequencyType.FY:
+            ratio_name = 'FY ' + ratio_name
+
+        result_df = result.to_frame(name=ratio_name)
+        return self._process_ratio_result(result_df, growth, lag, rounding)
 
     @handle_errors
     def get_fcf_yield_ratio(
