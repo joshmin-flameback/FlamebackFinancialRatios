@@ -23,21 +23,12 @@ RATIO_FIELD_DEPENDENCIES = {
                            'Shares Outstanding', 'Revenue', 'Total Liabilities',
                            'Retained Earnings', 'Stock Price'},
 
-    # Collection mappings (combination of multiple ratios)
-    'collect_financial_health_ratios': {'Total Debt', 'Total Equity', 'EBITDA', 'Interest Expense',
-                                        'Total Current Assets', 'Total Current Liabilities', 'Total Inventories',
-                                        'Cost of Goods Sold', 'Accounts Receivable', 'Revenue',
-                                        'Accounts Payable', 'Total Assets', 'EBIT',
-                                        'Shares Outstanding', 'Total Liabilities',
-                                        'Retained Earnings', 'Stock Price'},
-
     # Earnings Ratios
-    'get_piotroski_score_ratio': {'Net Income', 'Cash Flow from Operations', 'Total Assets', 'Total Debt',
+    'get_piotroski_score_ratio': {'Net Income', 'Operating Cash Flow', 'Total Assets', 'Total Debt',
                                  'Total Current Assets', 'Total Current Liabilities', 'Shares Outstanding', 'Gross Margin',
                                  'Total Assets Turnover'},
     'get_revenue_growth_ratio': {'Revenue'},
     'get_eps_growth_ratio': {'Basic EPS'},
-    'get_ebitda_margin_ratio': {'EBITDA', 'Revenue'},
     'get_roe_ratio': {'Net Income', 'Total Equity'},
     'get_fcf_growth_ratio': {'Free Cash Flow'},
     'get_revenue_consecutive_growth_ratio': {'Revenue'},
@@ -58,35 +49,24 @@ RATIO_FIELD_DEPENDENCIES = {
     'get_revenue_vs_estimate_ratio': {'Revenue', 'Revenue Estimate'},
     'get_shares_outstanding_vs_estimate_ratio': {'Net Income', 'Basic EPS', 'Net Income Estimate', 'EPS Estimate'},
     'get_free_cash_flow_average_growth_ratio': {'Free Cash Flow'},
-    'collect_earning_ratios': {'Revenue', 'Basic EPS', 'EBITDA', 'Net Income',
-                               'Total Assets', 'Total Equity', 'Free Cash Flow', 'Cash Flow from Operations',
-                               'Total Debt', 'Total Current Assets', 'Total Current Liabilities', 
-                               'Shares Outstanding', 'Gross Margin', 'Total Assets Turnover',
-                               'Revenue Estimate', 'Net Income Estimate', 'EPS Estimate',
-                               'Net Income'},
-                               
+
     # Quality Ratios
+    'get_aicr_ratio': {'Net Income', 'Total Assets', 'Total Liabilities', 'Dividends Paid'},
     'get_profit_dip_ratio': {'Net Income'},
     'get_roic_band_ratio': {'Invested Capital', 'NOPAT'},
-    'get_aicr_ratio': {'Net Income', 'Total Assets', 'Total Liabilities', 'Dividends Paid'},
     'get_cfo_band_ratio': {'Cash Flow from Operations'},
     'get_fcf_dip_ratio': {'Free Cash Flow'},
     'get_negative_fcf_ratio': {'Free Cash Flow'},
-    'get_fcf_profit_band_ratio': {'Free Cash Flow', 'Net Income'},
-    'collect_quality_ratios': {'Invested Capital', 'NOPAT',
-                               'Total Assets', 'Total Liabilities', 'Dividends Paid',
-                               'Cash Flow from Operations', 'Free Cash Flow', 'Net Income'},
-    
+    'get_cfo_profit_band_ratio': {'Cash Flow from Operations', 'Net Income'},
+
     # Valuation Ratios
     'get_steady_state_value_ratio': {'Basic EPS', 'WACC', 'Stock Price'},
     'get_fair_value_ratio': {'Net Income', 'Total Assets', 'Total Liabilities', 'Basic EPS', 'Stock Price'},
     'get_cmp_revenue_band_ratio': {'Stock Price', 'Revenue', 'Shares Outstanding'},
     'get_cmp_eps_band_ratio': {'Stock Price', 'Basic EPS'},
     'get_cmp_cfo_band_ratio': {'Stock Price', 'Operating Cash Flow', 'Shares Outstanding'},
-    'get_fcf_yield_ratio': {'Free Cash Flow', 'Stock Price', 'Shares Outstanding'},
-    'collect_valuation_ratios': {'Basic EPS', 'WACC', 'Stock Price', 'Net Income', 'Total Assets',
-                                'Total Liabilities', 'Revenue', 'Operating Cash Flow',
-                                'Free Cash Flow', 'Shares Outstanding'},
+    'get_fcf_yield_ratio': {'Free Cash Flow', 'Stock Price', 'Shares Outstanding'}
+
 }
 
 

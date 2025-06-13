@@ -20,7 +20,7 @@ def calculate_growth(
     dataset: pd.Series | pd.DataFrame,
     lag: int | list[int] = 1,
     rounding: int | None = 4,
-    axis: str = "columns",
+    axis: str | int = 0,
 ) -> pd.Series | pd.DataFrame:
     """
     Calculates growth for a given dataset. Defaults to a lag of 1 (i.e. 1 year or 1 quarter).
@@ -120,9 +120,11 @@ def calculate_average(
     """
     if growth:
         # Calculate period-over-period growth
-        dataset = calculate_growth(dataset)
+        dataset = calculate_growth(dataset, axis=0)
         # handle infinite values by replacing with NaN
         dataset = dataset.replace([float('inf'), float('-inf')], pd.NA)
+        # convert the dataset, coercing invalid values like <NA> or 'NaN' into actual np.nan.
+        dataset = pd.to_numeric(dataset, errors='coerce')
 
     # Calculate trailing average of growth rates
     if trailing:

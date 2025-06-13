@@ -189,13 +189,13 @@ def get_revenue_growth(revenue: pd.Series) -> pd.Series:
         # Handle missing values
         if revenue is None or revenue.empty:
             return pd.Series(dtype=float)
-
-        # Calculate growth rate
-        prev_revenue = revenue.shift(1)
-        growth = (revenue - prev_revenue) / prev_revenue.abs()
-        
-        # Cap extreme growth values at 1000% (10x)
-        growth = growth.clip(-10, 10)
+        growth = calculate_growth(revenue)
+        # # Calculate growth rate
+        # prev_revenue = revenue.shift(1)
+        # growth = (revenue - prev_revenue) / prev_revenue.abs()
+        #
+        # # Cap extreme growth values at 1000% (10x)
+        # growth = growth.clip(-10, 10)
 
         # Handle invalid calculations
         growth = growth.replace([np.inf, -np.inf], np.nan)
@@ -226,7 +226,9 @@ def get_eps_growth(eps: pd.Series) -> pd.Series:
         if eps is None or eps.empty:
             return pd.Series(dtype=float)
 
-        growth = (eps - eps.shift(1)) / eps.shift(1).replace(0, np.nan)
+        growth = calculate_growth(eps)
+
+        # growth = (eps - eps.shift(1)) / eps.shift(1).replace(0, np.nan)
         return growth.replace([np.inf, -np.inf], np.nan)
 
     except Exception as e:
@@ -336,11 +338,11 @@ def get_average_revenue_growth(revenue: pd.Series) -> pd.Series:
         if revenue is None or revenue.empty:
             return pd.Series(dtype=float)
 
-        # Calculate growth rates
-        growth = get_revenue_growth(revenue)
+        # # Calculate growth rates
+        # growth = get_revenue_growth(revenue)
 
         # Calculate rolling average with more lenient min_periods
-        avg_growth = growth.rolling(window=20, min_periods=1).mean()
+        avg_growth = calculate_average(revenue, growth=True, trailing=20)
 
         # Handle invalid calculations
         avg_growth = avg_growth.replace([np.inf, -np.inf], np.nan)
@@ -372,7 +374,8 @@ def get_average_gross_margin(gross_margin: pd.Series) -> pd.Series:
             return pd.Series(dtype=float)
 
         # Calculate rolling average
-        avg_margin = gross_margin.rolling(window=20, min_periods=20).mean()
+        avg_margin = calculate_average(gross_margin, trailing=20)
+
 
         # Handle invalid calculations
         avg_margin = avg_margin.replace([np.inf, -np.inf], np.nan)
@@ -394,10 +397,13 @@ def get_average_gross_margin_growth(gross_margin: pd.Series) -> pd.Series:
         pd.Series: Time series of average gross margin growth rates. Returns NaN for
                   periods with insufficient data or zero gross margin values.
     """
-    # Handle zero gross margin values
-    safe_gross_margin = gross_margin.replace(0, np.nan)
-    growth_rates = calculate_growth(safe_gross_margin, lag=1)
-    return calculate_average(growth_rates, window=20)
+    try:
+        # Handle zero gross margin values
+        safe_gross_margin = gross_margin.replace(0, np.nan)
+        growth_rates = calculate_growth(safe_gross_margin)
+        return calculate_average(growth_rates, trailing=20)
+    except Exception as e:
+        return pd.Series(np.nan, index=gross_margin.index)
 
 
 def get_average_ebitda(ebitda: pd.Series) -> pd.Series:
@@ -419,7 +425,7 @@ def get_average_ebitda(ebitda: pd.Series) -> pd.Series:
         if ebitda is None or ebitda.empty:
             return pd.Series(dtype=float)
             
-        return calculate_average(ebitda, window=20)
+        return calculate_average(ebitda, trailing=20)
         
     except Exception as e:
         return pd.Series(np.nan, index=ebitda.index)
@@ -444,7 +450,7 @@ def get_average_ebitda_growth(ebitda: pd.Series) -> pd.Series:
             return pd.Series(dtype=float)
             
         growth = calculate_growth(ebitda)
-        return calculate_average(growth, window=20)
+        return calculate_average(growth, trailing=20)
         
     except Exception as e:
         return pd.Series(np.nan, index=ebitda.index)
@@ -469,7 +475,7 @@ def get_average_eps_growth(eps: pd.Series) -> pd.Series:
             return pd.Series(dtype=float)
             
         growth = calculate_growth(eps)
-        return calculate_average(growth, window=20)
+        return calculate_average(growth, trailing=20)
         
     except Exception as e:
         return pd.Series(np.nan, index=eps.index)
@@ -528,11 +534,15 @@ def get_eps_growth_vs_average_growth(eps: pd.Series) -> pd.Series:
     Returns:
         pd.Series: Time series of growth ratios (current growth / average growth)
     """
-    # Handle zero EPS values
-    safe_eps = eps.replace(0, np.nan)
-    growth_rates = calculate_growth(safe_eps, lag=1)
-    average_growth_rates = calculate_average(growth_rates, window=20)
-    return growth_rates / average_growth_rates
+    try:
+        # Handle zero EPS values
+        safe_eps = eps.replace(0, np.nan)
+        growth_rates = calculate_growth(safe_eps, lag=1)
+        average_growth_rates = calculate_average(growth_rates, trailing=20)
+        return growth_rates / average_growth_rates
+    except Exception as e:
+        print("Error in Earnings Model: get_eps_growth_vs_average_growth", e)
+        return pd.Series(np.nan, index=eps.index)
 
 
 def get_ebitda_growth_vs_average_growth(ebitda: pd.Series) -> pd.Series:
@@ -559,6 +569,7 @@ def get_ebitda_growth_vs_average_growth(ebitda: pd.Series) -> pd.Series:
         return current_growth / avg_growth.replace(0, np.nan)
         
     except Exception as e:
+        print("Error in Earnings Model: get_ebitda_growth_vs_average_growth", e)
         return pd.Series(np.nan, index=ebitda.index)
 
 def get_gross_margin_growth_vs_average_growth(gross_margin: pd.Series) -> pd.Series:
@@ -648,7 +659,7 @@ def get_roe_vs_average_roe(net_income: pd.Series, shareholders_equity: pd.Series
             return pd.Series(dtype=float)
             
         current_roe = get_return_on_equity(net_income, shareholders_equity)
-        avg_roe = calculate_average(current_roe, window=20)
+        avg_roe = calculate_average(current_roe, trailing=20)
         return current_roe / avg_roe.replace(0, np.nan)
         
     except Exception as e:
@@ -666,9 +677,13 @@ def get_return_on_assets(net_income: pd.Series, assets: pd.Series) -> pd.Series:
     Returns:
         pd.Series: Time series of ROA values
     """
-    # Handle zero assets values
-    safe_assets = assets.replace(0, np.nan)
-    return net_income / safe_assets
+    try:
+        # Handle zero assets values
+        safe_assets = assets.replace(0, np.nan)
+        return net_income / safe_assets
+    except Exception as e:
+        print("Error in Earnings Model: get_return_on_assets", e)
+        return pd.Series(np.nan, index=net_income.index)
 
 
 def get_roa_vs_average_roa(net_income: pd.Series, assets: pd.Series) -> pd.Series:
@@ -678,7 +693,7 @@ def get_roa_vs_average_roa(net_income: pd.Series, assets: pd.Series) -> pd.Serie
             return pd.Series(dtype=float)
 
         current_roa = net_income / assets.replace(0, np.nan)
-        avg_roa = current_roa.rolling(window=20, min_periods=20).mean()
+        avg_roa = calculate_average(current_roa, trailing=20)
         ratio = current_roa / avg_roa.replace(0, np.nan)
         ratio = ratio.replace([np.inf, -np.inf], np.nan)
         return ratio
@@ -783,12 +798,13 @@ def get_free_cash_flow_growth(free_cash_flow: pd.Series) -> pd.Series:
         # Handle missing values
         if free_cash_flow is None or free_cash_flow.empty:
             return pd.Series(dtype=float)
+        growth = calculate_growth(free_cash_flow)
 
-        # Calculate growth rate
-        growth = (free_cash_flow - free_cash_flow.shift(1)) / free_cash_flow.shift(1).replace(0, np.nan)
-
-        # Handle invalid calculations
-        growth = growth.replace([np.inf, -np.inf], np.nan)
+        # # Calculate growth rate
+        # growth = (free_cash_flow - free_cash_flow.shift(1)) / free_cash_flow.shift(1).replace(0, np.nan)
+        #
+        # # Handle invalid calculations
+        # growth = growth.replace([np.inf, -np.inf], np.nan)
 
         return growth
 
@@ -815,9 +831,8 @@ def get_free_cash_flow_average_growth(free_cash_flow: pd.Series) -> pd.Series:
     try:
         if free_cash_flow is None or free_cash_flow.empty:
             return pd.Series(dtype=float)
-            
-        growth = calculate_growth(free_cash_flow)
-        return calculate_average(growth, window=20)
+
+        return calculate_average(free_cash_flow, growth=True, trailing=5)
         
     except Exception as e:
         return pd.Series(np.nan, index=free_cash_flow.index)

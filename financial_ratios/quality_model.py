@@ -102,17 +102,12 @@ def get_dips_in_profit_over_10yrs(
                   insufficient data (less than 10 years).
     """
 
-    # Initialize result series with NaN
-    result = pd.Series(np.nan, index=net_profit.index)
+    # Calculate year-over-year change
+    profit_change = net_profit.pct_change(periods=1) * 100
 
-    # Only calculate for periods with enough data
-    if len(net_profit) >= 10:
-        # Calculate year-over-year change
-        profit_change = net_profit.pct_change(periods=1) * 100
-        
-        # Count large dips and handle NaN values
-        large_dips = (profit_change < -10).fillna(False).astype(int)
-        result = large_dips.rolling(window=10, min_periods=10).sum()
+    # Count large dips and handle NaN values
+    large_dips = (profit_change < -10).fillna(False).astype(int)
+    result = large_dips.rolling(window=10,min_periods=1).sum()
 
     return result
 
@@ -144,16 +139,14 @@ def get_roic_band(
     
     # Calculate ROIC
     roic = nopat / safe_invested_capital
-    
+
     # Check for all NaN or zero values
     if roic.isna().all() or (roic == 0).all() or len(roic.dropna()) < 5:
         raise ValueError("Insufficient data: At least 5 periods of non-zero ROIC required.")
-        
-    rolling_window = min(10, len(roic))
-    
+
     # Calculate rolling statistics with NaN handling
-    mean_roic = roic.rolling(window=rolling_window, min_periods=5).mean()
-    std_roic = roic.rolling(window=rolling_window, min_periods=5).std()
+    mean_roic = roic.rolling(window=10, min_periods=1).mean()
+    std_roic = roic.rolling(window=10, min_periods=1).std()
     
     # Handle zero standard deviation
     safe_std_roic = std_roic.replace(0, np.nan)
@@ -182,14 +175,10 @@ def get_cfo_band(cfo: pd.Series) -> pd.Series:
     Raises:
         ValueError: If less than 5 periods of data are available
     """
-    rolling_window = min(10, len(cfo))
-    
-    if rolling_window < 5:
-        raise ValueError("Insufficient data: At least 5 periods of CFO required.")
 
     # Calculate rolling statistics with NaN handling
-    mean_cfo = cfo.rolling(window=rolling_window, min_periods=5).mean()
-    std_cfo = cfo.rolling(window=rolling_window, min_periods=5).std()
+    mean_cfo = cfo.rolling(window=10, min_periods=1).mean()
+    std_cfo = cfo.rolling(window=10, min_periods=1).std()
     
     # Handle zero standard deviation
     safe_std_cfo = std_cfo.replace(0, np.nan)
@@ -211,20 +200,13 @@ def get_negative_dips_in_fcf_over_10yrs(fcf: pd.Series) -> pd.Series:
         pd.Series: Time series of cumulative negative FCF change counts. Returns NaN for
                   periods with insufficient data (less than 10 years).
     """
-    # Initialize result series with NaN
-    result = pd.Series(np.nan, index=fcf.index)
+    fcf_change = fcf.pct_change(periods=1)
+
+    # Count negative changes and ensure integer output
+    negative_changes = (fcf_change < 0).fillna(False).astype('int64')
+    rolling_sum = negative_changes.rolling(window=10, min_periods=1).sum()
     
-    # Only calculate for periods with enough data
-    if len(fcf) >= 10:
-        # Calculate year-over-year change
-        fcf_change = fcf.pct_change(periods=1)
-        
-        # Count negative changes and ensure integer output
-        negative_changes = (fcf_change < 0).fillna(False).astype('int64')
-        rolling_sum = negative_changes.rolling(window=10, min_periods=10).sum()
-        result.iloc[9:] = rolling_sum.iloc[9:].fillna(0).astype('int64')
-    
-    return result
+    return rolling_sum
 
 def get_negative_fcf_years(fcf: pd.Series) -> pd.Series:
     """
@@ -240,32 +222,25 @@ def get_negative_fcf_years(fcf: pd.Series) -> pd.Series:
         pd.Series: Time series of cumulative negative FCF year counts. Returns NaN for
                   periods with insufficient data (less than 10 years).
     """
-    # Initialize result series with NaN
-    result = pd.Series(np.nan, index=fcf.index)
-    
-    # Only calculate for periods with enough data
-    if len(fcf) >= 10:
-        # Count negative FCF years and ensure integer output
-        negative_years = (fcf < 0).fillna(False).astype('int64')
-        rolling_sum = negative_years.rolling(window=10, min_periods=10).sum()
-        result.iloc[9:] = rolling_sum.iloc[9:].fillna(0).astype('int64')
-    
-    return result
+    # Count negative FCF years and ensure integer output
+    negative_years = (fcf < 0).fillna(False).astype('int64')
+    rolling_sum = negative_years.rolling(window=10, min_periods=1).sum()
+    return rolling_sum
 
-def get_fcf_to_net_profit_band(
-        fcf: pd.Series,
+def get_cfo_to_net_profit_band(
+        cfo: pd.Series,
         net_profit: pd.Series
 ) -> pd.Series:
     """
-    Calculate the Free Cash Flow (FCF) to Net Profit ratio band by comparing the current
+    Calculate the CFO to Net Profit ratio band by comparing the current
     ratio to its historical mean and standard deviation.
 
     This metric helps identify the quality of earnings by showing how well net profit
-    converts to actual cash flow. A ratio consistently below historical norms may
+    converts to actual CFO. A ratio consistently below historical norms may
     indicate deteriorating earnings quality or aggressive accounting practices.
 
     Args:
-        fcf (pd.Series): Time series of Free Cash Flow values
+        cfo (pd.Series): Time series of CFO values
         net_profit (pd.Series): Time series of Net Profit values
 
     Returns:
@@ -279,15 +254,11 @@ def get_fcf_to_net_profit_band(
     safe_net_profit = net_profit.replace(0, np.nan)
     
     # Calculate FCF to Net Profit ratio
-    ratio = fcf / safe_net_profit
-    rolling_window = min(10, len(ratio))
-    
-    if rolling_window < 5:
-        raise ValueError("Insufficient data: At least 5 periods of data required.")
+    ratio = cfo / safe_net_profit
 
     # Calculate rolling statistics with NaN handling
-    mean_ratio = ratio.rolling(window=rolling_window, min_periods=5).mean()
-    std_ratio = ratio.rolling(window=rolling_window, min_periods=5).std()
+    mean_ratio = ratio.rolling(window=10, min_periods=1).mean()
+    std_ratio = ratio.rolling(window=10, min_periods=1).std()
     
     # Handle zero standard deviation
     safe_std_ratio = std_ratio.replace(0, np.nan)

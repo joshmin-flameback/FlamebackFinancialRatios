@@ -115,12 +115,15 @@ class Ratios:
         """
 
         # Calculate all financial health ratios
-        debt_equity = self.get_debt_to_equity_ratio(freq=FrequencyType.FY)
-        interest_coverage = self.get_interest_coverage_ratio(freq=FrequencyType.TTM)
-        current_ratio = self.get_current_ratio(freq=FrequencyType.FY)
-        cash_conversion = self.get_cash_conversion_cycle(freq=FrequencyType.FY)
-        altman_z = self.get_altman_z_score(freq=FrequencyType.FY)
-        self._financial_health_ratios = pd.concat([debt_equity, interest_coverage, current_ratio, cash_conversion, altman_z], axis=1)
+        if self._quarterly:
+            interest_coverage = self.get_interest_coverage_ratio(freq=FrequencyType.TTM)
+            self._financial_health_ratios = pd.concat([interest_coverage], axis=1)
+        else:
+            debt_equity = self.get_debt_to_equity_ratio(freq=FrequencyType.FY)
+            current_ratio = self.get_current_ratio(freq=FrequencyType.FY)
+            cash_conversion = self.get_cash_conversion_cycle(freq=FrequencyType.FY)
+            altman_z = self.get_altman_z_score(freq=FrequencyType.FY)
+            self._financial_health_ratios = pd.concat([debt_equity, current_ratio, cash_conversion, altman_z], axis=1)
 
         # Process and return the results
         return self._process_ratio_result(self._financial_health_ratios, growth, lag, rounding)
@@ -172,6 +175,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
 
         # Calculate ratio and convert to DataFrame
         result = financial_health_model.get_debt_to_equity_ratio(total_debt, total_equity)
@@ -283,6 +288,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -356,6 +363,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -440,6 +449,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -480,80 +491,84 @@ class Ratios:
             pd.DataFrame: Earnings ratios calculated based on the specified parameters.
         """
         # Calculate all earnings ratios with the appropriate frequency
-        
-        # Composite Scores
-        piotroski_score = self.get_piotroski_score_ratio(freq=freq)
-        # Basic Growth Metrics
-        revenue_growth = self.get_revenue_growth_ratio(freq=freq)
-        eps_growth = self.get_eps_growth_ratio(freq=freq)
-        # Consecutive growth metrics
-        revenue_consecutive_growth = self.get_revenue_consecutive_growth_ratio(freq=freq)
-        eps_consecutive_growth = self.get_eps_consecutive_growth_ratio(freq=freq)
-        # Average growth analysis
-        avg_revenue_growth = self.get_average_revenue_growth_ratio(freq=freq)
-        avg_gross_margin = self.get_average_gross_margin_ratio(freq=freq)
-        avg_gross_margin_growth = self.get_average_gross_margin_growth_ratio(freq=freq)
-        avg_ebitda = self.get_average_ebitda_ratio(freq=freq)
-        avg_ebitda_growth = self.get_average_ebitda_growth_ratio(freq=freq)
-        avg_eps_growth = self.get_average_eps_growth_ratio(freq=freq)
-        # Growth comparison metrics
-        revenue_growth_vs_avg = self.get_revenue_growth_vs_average_growth_ratio(freq=freq)
-        eps_growth_vs_avg = self.get_eps_growth_vs_average_growth_ratio(freq=freq)
-        ebitda_growth_vs_avg = self.get_ebitda_growth_vs_average_growth_ratio(freq=freq)
-        gross_margin_growth_vs_avg = self.get_gross_margin_growth_vs_average_growth_ratio(freq=freq)
-        # Return metrics
-        roe = self.get_roe_ratio(freq=freq)
-        roe_vs_avg = self.get_roe_vs_average_roe_ratio(freq=freq)
-        roa = self.get_return_on_assets_ratio(freq=freq)
-        roa_vs_avg = self.get_roa_vs_average_roa_ratio(freq=freq)
-        # Estimate Comparison Metrics
-        revenue_vs_estimate = self.get_revenue_vs_estimate_ratio(freq=freq)
-        shares_outstanding_vs_estimate = self.get_shares_outstanding_vs_estimate_ratio(freq=freq)
-        # Cash Flow Analysis
-        fcf_growth = self.get_fcf_growth_ratio(freq=freq)
-        fcf_avg_growth = self.get_free_cash_flow_average_growth_ratio(freq=freq)
 
-        # Combine all ratios by logical categories
-        self._earning_ratios = pd.concat([
-            # Composite Scores
-            piotroski_score,
-            
+        if self._quarterly:
             # Basic Growth Metrics
-            revenue_growth, 
-            eps_growth,
-            
-            # Consecutive Growth Metrics
-            revenue_consecutive_growth,
-            eps_consecutive_growth,
-            
-            # Average Growth Analysis
-            avg_revenue_growth,
-            avg_gross_margin,
-            avg_gross_margin_growth,
-            avg_ebitda,
-            avg_ebitda_growth,
-            avg_eps_growth,
-            
-            # Growth Comparison Metrics
-            revenue_growth_vs_avg,
-            eps_growth_vs_avg,
-            ebitda_growth_vs_avg,
-            gross_margin_growth_vs_avg,
-            
-            # Return Metrics
-            roe,
-            roe_vs_avg,
-            roa,
-            roa_vs_avg,
-            
+            revenue_growth = self.get_revenue_growth_ratio()
+            eps_growth = self.get_eps_growth_ratio()
+            # Consecutive growth metrics
+            revenue_consecutive_growth = self.get_revenue_consecutive_growth_ratio()
+            eps_consecutive_growth = self.get_eps_consecutive_growth_ratio()
+            # Average growth analysis
+            avg_revenue_growth = self.get_average_revenue_growth_ratio()
+            avg_gross_margin = self.get_average_gross_margin_ratio()
+            avg_gross_margin_growth = self.get_average_gross_margin_growth_ratio()
+            avg_ebitda = self.get_average_ebitda_ratio()
+            avg_ebitda_growth = self.get_average_ebitda_growth_ratio()
+            avg_eps_growth = self.get_average_eps_growth_ratio()
+            # Growth comparison metrics
+            revenue_growth_vs_avg = self.get_revenue_growth_vs_average_growth_ratio(freq=FrequencyType.TTM)
+            eps_growth_vs_avg = self.get_eps_growth_vs_average_growth_ratio(freq=FrequencyType.TTM)
+            ebitda_growth_vs_avg = self.get_ebitda_growth_vs_average_growth_ratio(freq=FrequencyType.TTM)
+            gross_margin_growth_vs_avg = self.get_gross_margin_growth_vs_average_growth_ratio(freq=FrequencyType.TTM)
+            # Return metrics
+            roe = self.get_roe_ratio(freq=FrequencyType.TTM)
+            roe_vs_avg = self.get_roe_vs_average_roe_ratio(freq=FrequencyType.TTM)
+            roa = self.get_return_on_assets_ratio(freq=FrequencyType.TTM)
+            roa_vs_avg = self.get_roa_vs_average_roa_ratio(freq=FrequencyType.TTM)
             # Estimate Comparison Metrics
-            revenue_vs_estimate,
-            shares_outstanding_vs_estimate,
-            
+            revenue_vs_estimate = self.get_revenue_vs_estimate_ratio()
+            shares_outstanding_vs_estimate = self.get_shares_outstanding_vs_estimate_ratio()
+            # Combine all ratios by logical categories
+            self._earning_ratios = pd.concat([
+                # Basic Growth Metrics
+                revenue_growth,
+                eps_growth,
+
+                # Consecutive Growth Metrics
+                revenue_consecutive_growth,
+                eps_consecutive_growth,
+
+                # Average Growth Analysis
+                avg_revenue_growth,
+                avg_gross_margin,
+                avg_gross_margin_growth,
+                avg_ebitda,
+                avg_ebitda_growth,
+                avg_eps_growth,
+
+                # Growth Comparison Metrics
+                revenue_growth_vs_avg,
+                eps_growth_vs_avg,
+                ebitda_growth_vs_avg,
+                gross_margin_growth_vs_avg,
+
+                # Return Metrics
+                roe,
+                roe_vs_avg,
+                roa,
+                roa_vs_avg,
+
+                # Estimate Comparison Metrics
+                revenue_vs_estimate,
+                shares_outstanding_vs_estimate,
+            ], axis=1)
+
+        else:
+            # Composite Scores
+            piotroski_score = self.get_piotroski_score_ratio(freq=FrequencyType.FY)
             # Cash Flow Analysis
-            fcf_growth,
-            fcf_avg_growth
-        ], axis=1)
+            fcf_growth = self.get_fcf_growth_ratio(freq=FrequencyType.FY)
+            fcf_avg_growth = self.get_free_cash_flow_average_growth_ratio(freq=FrequencyType.FY)
+            # Combine all ratios by logical categories
+            self._earning_ratios = pd.concat([
+                # Composite Scores
+                piotroski_score,
+
+                # Cash Flow Analysis
+                fcf_growth,
+                fcf_avg_growth
+            ], axis=1)
 
         # Process and return the results
         return self._process_ratio_result(self._earning_ratios, growth, lag, rounding)
@@ -657,6 +672,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
 
         # Convert to DataFrame with appropriate name
         result_df = result.to_frame(name=ratio_name)
@@ -714,6 +731,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
 
         # Convert to DataFrame with appropriate name
         result_df = result.to_frame(name=ratio_name)
@@ -771,6 +790,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
 
         # Convert to DataFrame with appropriate name
         result_df = result.to_frame(name=ratio_name)
@@ -837,6 +858,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -890,6 +913,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -943,6 +968,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -996,6 +1023,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -1049,6 +1078,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -1102,6 +1133,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -1155,6 +1188,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -1208,6 +1243,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -1261,6 +1298,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -1314,6 +1353,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -1369,6 +1410,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -1422,6 +1465,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -1475,6 +1520,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -1528,6 +1575,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -1593,6 +1642,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -1651,6 +1702,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -1709,6 +1762,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -1769,6 +1824,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -1840,6 +1897,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -1895,6 +1954,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -1930,12 +1991,12 @@ class Ratios:
         cfo_band = self.get_cfo_band_ratio(freq=FrequencyType.FY)
         fcf_dip = self.get_fcf_dip_ratio(freq=FrequencyType.FY)
         negative_fcf = self.get_negative_fcf_ratio(freq=FrequencyType.FY)
-        fcf_profit_band = self.get_fcf_profit_band_ratio(freq=FrequencyType.FY)
+        cfo_profit_band = self.get_cfo_profit_band_ratio(freq=FrequencyType.FY)
 
         # Combine all ratios
         self._quality_ratios = pd.concat([
             aicr, profit_dip, roic_band, cfo_band,
-            fcf_dip, negative_fcf, fcf_profit_band
+            fcf_dip, negative_fcf, cfo_profit_band
         ], axis=1)
 
         # Process and return the results
@@ -2006,6 +2067,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -2060,6 +2123,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -2117,11 +2182,13 @@ class Ratios:
         result = quality_model.get_roic_band(invested_capital,nopat)
 
         # Name based on frequency used
-        ratio_name = 'ROIC band'
+        ratio_name = 'ROIC Band'
         if freq == FrequencyType.TTM:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
 
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -2170,6 +2237,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -2218,6 +2287,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -2266,12 +2337,14 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
     @handle_errors
-    def get_fcf_profit_band_ratio(
+    def get_cfo_profit_band_ratio(
             self,
             rounding: int | None = None,
             growth: bool = False,
@@ -2292,32 +2365,34 @@ class Ratios:
         Returns:
             pd.DataFrame: FCF to profit band ratio values.
         """
-        fcf = self._financial_data['Free Cash Flow']
+        cfo = self._financial_data['Cash Flow from Operations']
         net_profit = self._financial_data['Net Income']
         
         # Apply frequency transformation if requested
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                fcf = fcf.freq.FY
+                cfo = cfo.freq.FY
                 net_profit = net_profit.freq.FY
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
-                fcf = fcf.freq.TTM
+                cfo = cfo.freq.TTM
                 net_profit = net_profit.freq.TTM
                 
         if trailing:
-            fcf = fcf.T.rolling(trailing).mean().T
+            cfo = cfo.T.rolling(trailing).mean().T
             net_profit = net_profit.T.rolling(trailing).mean().T
 
-        result = quality_model.get_fcf_to_net_profit_band(fcf, net_profit)
+        result = quality_model.get_cfo_to_net_profit_band(cfo, net_profit)
         
         # Name based on frequency used
-        ratio_name = 'FCF to Profit Band'
+        ratio_name = 'CFO to Profit Band'
         if freq == FrequencyType.TTM:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -2357,18 +2432,23 @@ class Ratios:
             pd.DataFrame: Valuation ratios calculated based on the specified parameters.
         """
         # Calculate all valuation ratios with the appropriate frequency
-        steady_state = self.get_steady_state_value_ratio()
-        fair_value = self.get_fair_value_ratio(freq=FrequencyType.FY)
-        cmp_revenue = self.get_cmp_revenue_band_ratio(freq=FrequencyType.FY)
-        cmp_eps = self.get_cmp_eps_band_ratio(freq=FrequencyType.FY)
-        cmp_cfo = self.get_cmp_cfo_band_ratio(freq=FrequencyType.FY)
-        fcf_yield = self.get_fcf_yield_ratio(freq=FrequencyType.FY)
+        if self._quarterly:
+            steady_state = self.get_steady_state_value_ratio()
+            cmp_revenue = self.get_cmp_revenue_band_ratio(freq=FrequencyType.TTM)
+            cmp_eps = self.get_cmp_eps_band_ratio(freq=FrequencyType.TTM)
 
-        # Combine all ratios
-        self._valuation_ratios = pd.concat([
-            steady_state, fair_value, cmp_revenue,
-            cmp_eps, cmp_cfo, fcf_yield
-        ], axis=1)
+            # Combine all ratios
+            self._valuation_ratios = pd.concat([
+                steady_state, cmp_revenue, cmp_eps], axis=1)
+        else:
+            fair_value = self.get_fair_value_ratio(freq=FrequencyType.FY)
+            cmp_cfo = self.get_cmp_cfo_band_ratio(freq=FrequencyType.FY)
+            fcf_yield = self.get_fcf_yield_ratio(freq=FrequencyType.FY)
+            self._valuation_ratios = pd.concat([
+                fair_value , cmp_cfo, fcf_yield], axis=1)
+
+
+
 
         # Process and return the results
         return self._process_ratio_result(self._valuation_ratios, growth, lag, rounding)
@@ -2403,7 +2483,7 @@ class Ratios:
         # Get required series from financial data
         eps = self._financial_data['Basic EPS']
         wacc = self._financial_data['WACC']
-        current_price = self._financial_data['Stock Price'].iloc[-1]  # Get latest price
+        current_price = self._financial_data['Stock Price']
 
         # Apply frequency transformation if requested
         if freq is not None:
@@ -2423,10 +2503,8 @@ class Ratios:
             eps = eps.rolling(trailing).mean()
             wacc = wacc.rolling(trailing).mean()
 
-        # Pass current price as a Series to match model requirements
-        current_price_series = pd.Series([current_price] * len(eps), index=eps.index)
-        
-        result = valuation_model.get_steady_state_value(eps, wacc, current_price_series)
+
+        result = valuation_model.get_steady_state_value(eps, wacc, current_price)
         
         # Name based on frequency used
         ratio_name = 'Steady State Value'
@@ -2434,6 +2512,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -2509,6 +2589,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -2579,6 +2661,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
 
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -2642,6 +2726,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
 
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -2712,6 +2798,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
 
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
@@ -2789,6 +2877,8 @@ class Ratios:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
+        elif self._quarterly:
+            ratio_name = 'QoQ ' + ratio_name
             
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)

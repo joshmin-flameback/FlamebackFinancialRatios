@@ -62,7 +62,7 @@ def get_steady_state_value(
     safe_price = current_price.replace(0, np.nan)
     
     # Calculate steady state value
-    return ((eps / safe_wacc) / safe_price - 1) * 100
+    return (((eps / safe_wacc) / safe_price) - 1) * 100
 
 def get_fair_value_vs_market_price(
         net_income: pd.Series,
@@ -122,7 +122,7 @@ def get_fair_value_vs_market_price(
     
     pe_ratio = current_price / safe_eps
     # Use 3-year average for historical comparison , 12 Quarters
-    avg_pe = pe_ratio.rolling(window=3, min_periods=1).mean()  # Require at least 1 quarter of data
+    avg_pe = pe_ratio.rolling(window=3, min_periods=1).mean()
 
     # Calculate fair value ratio with NaN handling
     fair_value_ratio = (
@@ -185,6 +185,7 @@ def get_price_to_revenue_band(
     
     # Calculate band statistics with NaN handling
     # Use 3-year average for historical comparison
+    # TODO: check with malay
     mean_ratio = ratio.rolling(window=3, min_periods=1).mean()
     std_ratio = ratio.rolling(window=3, min_periods=1).std()
     safe_std_ratio = std_ratio.replace(0, np.nan)
@@ -231,6 +232,7 @@ def get_price_to_eps_band(
     
     # Calculate band statistics with NaN handling
     # Use 3-year average for historical comparison
+    # TODO: check with malay
     mean_ratio = ratio.rolling(window=3, min_periods=1).mean()
     std_ratio = ratio.rolling(window=3, min_periods=1).std()
     safe_std_ratio = std_ratio.replace(0, np.nan)
