@@ -1949,7 +1949,7 @@ class Ratios:
         result = earnings_model.get_free_cash_flow_average_growth(fcf)
         
         # Name based on frequency used
-        ratio_name = 'Average FCF Growth (20p)'
+        ratio_name = 'Average FCF Growth (5yrs)'
         if freq == FrequencyType.TTM:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
