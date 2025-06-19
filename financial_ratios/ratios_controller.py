@@ -208,25 +208,25 @@ class Ratios:
         """
 
         # Get required series from financial data
-        ebitda = self._financial_data['EBITDA']
+        ebit = self._financial_data['EBIT']
         interest_expense = self._financial_data['Interest Expense']
 
         # Apply frequency transformation if requested
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                ebitda = ebitda.freq.FY
+                ebit = ebit.freq.FY
                 interest_expense = interest_expense.freq.FY
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
-                ebitda = ebitda.freq.TTM
+                ebit = ebit.freq.TTM
                 interest_expense = interest_expense.freq.TTM
         # Apply trailing window if specified (for backward compatibility)
         elif trailing:
-            ebitda = ebitda.rolling(trailing).sum()
+            ebit = ebit.rolling(trailing).sum()
             interest_expense = interest_expense.rolling(trailing).sum()
 
-        result = financial_health_model.get_interest_coverage_ratio(ebitda, interest_expense)
+        result = financial_health_model.get_interest_coverage_ratio(ebit, interest_expense)
         
         # Name based on frequency used
         ratio_name = 'Interest Coverage'

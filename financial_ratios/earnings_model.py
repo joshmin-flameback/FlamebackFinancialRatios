@@ -62,109 +62,72 @@ values for those specific time periods, maintaining the time series structure.
 # ----------------------
 
 def get_piotroski_score(
-    net_income: pd.Series,
-    total_assets: pd.Series,
-    cash_flow_from_operations: pd.Series,
-    current_assets: pd.Series,
-    current_liabilities: pd.Series,
-    long_term_debt: pd.Series,
-    shares_outstanding: pd.Series,
-    revenue: pd.Series,
-    cogs: pd.Series
+        net_income: pd.Series,
+        total_assets: pd.Series,
+        cash_flow_from_operations: pd.Series,
+        current_assets: pd.Series,
+        current_liabilities: pd.Series,
+        long_term_debt: pd.Series,
+        shares_outstanding: pd.Series,
+        revenue: pd.Series,
+        cogs: pd.Series
 ) -> pd.Series:
     """
-    Calculate the Piotroski F-Score, a value investing metric that uses nine criteria to determine the financial strength of a company.
-    
-    The score ranges from 0-9, where 9 indicates the highest financial strength. The criteria are:
-    1. Return on Assets (ROA) > 0
-    2. Operating Cash Flow > 0
-    3. ROA increasing
-    4. Operating Cash Flow > Net Income
-    5. Decreasing Leverage (Long-term debt)
-    6. Increasing Current Ratio
-    7. No new shares issued
-    8. Increasing Gross Margin
-    9. Increasing Asset Turnover
-    
-    All errors are handled gracefully by returning NaN values to maintain time series integrity.
-    
-    Parameters
-    ----------
-    net_income : pd.Series
-        Time series of net income values
-    total_assets : pd.Series
-        Time series of total assets values
-    cash_flow_from_operations : pd.Series
-        Time series of operating cash flow values
-    current_assets : pd.Series
-        Time series of current assets values
-    current_liabilities : pd.Series
-        Time series of current liabilities values
-    long_term_debt : pd.Series
-        Time series of long-term debt values
-    shares_outstanding : pd.Series
-        Time series of shares outstanding values
-    revenue : pd.Series
-        Time series of revenue values
-    cogs : pd.Series
-        Time series of cost of goods sold values
-    
-    Returns
-    -------
-    pd.Series
-        Time series of Piotroski F-scores (0-9)
+    Calculate the Piotroski F-Score using 9 fundamental criteria.
+
+    Returns a score between 0 and 9 per time index.
     """
     try:
-        # Initialize score series
         score = pd.Series(0, index=net_income.index)
-        
-        # 1. ROA (Net Income / Total Assets)
+
+        # 1. Positive Net Income
+        score += (net_income > 0).astype(int)
+
+        # 2. Positive ROA (Return on Assets)
         roa = net_income / total_assets.replace(0, np.nan)
-        score = score.where(pd.isna(roa), score + (roa > 0))
-        
-        # 2. Operating Cash Flow
-        score = score.where(pd.isna(cash_flow_from_operations), 
-                          score + (cash_flow_from_operations > 0))
-        
-        # 3. ROA Change (requires lag)
+        score += (roa > 0).astype(int)
+
+        # 3. Positive Operating Cash Flow
+        score += (cash_flow_from_operations > 0).astype(int)
+
+        # 4. CFO > Net Income
+        score += ((cash_flow_from_operations > net_income)).astype(int)
+
+        # 5. ROA Improvement YoY
         roa_change = roa - roa.shift(1)
-        score = score.where(pd.isna(roa_change), score + (roa_change > 0))
-        
-        # 4. Cash Flow vs Net Income (Quality of Earnings)
-        score = score.where(pd.isna(cash_flow_from_operations) | pd.isna(net_income),
-                          score + (cash_flow_from_operations > net_income))
-        
-        # 5. Long-term Debt Change
-        debt_change = long_term_debt - long_term_debt.shift(1)
-        score = score.where(pd.isna(debt_change), score + (debt_change < 0))
-        
-        # 6. Current Ratio Change
+        score += (roa_change > 0).astype(int)
+
+        # 6. Decrease in Leverage (Long-Term Debt / Total Assets)
+        debt_ratio = long_term_debt / total_assets.replace(0, np.nan)
+        debt_change = debt_ratio - debt_ratio.shift(1)
+        score += (debt_change < 0).astype(int)
+
+        # 7. Improvement in Current Ratio
         current_ratio = current_assets / current_liabilities.replace(0, np.nan)
-        curr_ratio_change = current_ratio - current_ratio.shift(1)
-        score = score.where(pd.isna(curr_ratio_change), score + (curr_ratio_change > 0))
-        
-        # 7. Shares Outstanding Change (no new shares issued)
+        current_ratio_change = current_ratio - current_ratio.shift(1)
+        score += (current_ratio_change > 0).astype(int)
+
+        # 8. No Dilution (no increase in shares outstanding)
         shares_change = shares_outstanding - shares_outstanding.shift(1)
-        score = score.where(pd.isna(shares_change), score + (shares_change <= 0))
-        
-        # 8. Gross Margin Change
+        score += (shares_change <= 0).astype(int)
+
+        # 9. Improvement in Gross Margin
         gross_margin = (revenue - cogs) / revenue.replace(0, np.nan)
-        margin_change = gross_margin - gross_margin.shift(1)
-        score = score.where(pd.isna(margin_change), score + (margin_change > 0))
-        
-        # 9. Asset Turnover Change
+        gross_margin_change = gross_margin - gross_margin.shift(1)
+        score += (gross_margin_change > 0).astype(int)
+
+        # 10. Improvement in Asset Turnover
         asset_turnover = revenue / total_assets.replace(0, np.nan)
-        turnover_change = asset_turnover - asset_turnover.shift(1)
-        score = score.where(pd.isna(turnover_change), score + (turnover_change > 0))
-        
-        # Handle edge cases
-        score = score.where(~((total_assets == 0) | (current_liabilities == 0)), np.nan)
-        score = score.where(~pd.isna(net_income), np.nan)  # If net income is NaN, score is NaN
-        
-        return score.astype('Int64')  # Convert to nullable integer type
-        
-    except Exception as e:
-        # Return NaN series in case of any error
+        asset_turnover_change = asset_turnover - asset_turnover.shift(1)
+        score += (asset_turnover_change > 0).astype(int)
+
+        # Cap score at 9 and handle NaNs where key inputs are missing
+        score = score.where(~pd.isna(net_income) & ~pd.isna(total_assets), np.nan)
+        score = score.clip(upper=9).astype('Int64')
+
+        return score
+
+    except Exception:
         return pd.Series(np.nan, index=net_income.index)
 
 # ------------------------
@@ -253,24 +216,8 @@ def get_revenue_consecutive_growth(revenue: pd.Series) -> pd.Series:
         Time series of consecutive growth periods
     """
     try:
-        # Handle missing values
-        if revenue is None or revenue.empty:
-            return pd.Series(dtype=float)
-
-        # Calculate growth rates
-        growth = get_revenue_growth(revenue)
-
-        # Initialize consecutive growth series
-        consecutive = pd.Series(0, index=revenue.index)
-
-        # Calculate consecutive periods
-        for i in range(1, len(revenue)):
-            if pd.isna(growth.iloc[i]) or growth.iloc[i] <= 0:
-                consecutive.iloc[i] = 0
-            else:
-                consecutive.iloc[i] = consecutive.iloc[i - 1] + 1
-
-        return consecutive
+        result = get_consecutive_number_of_growth(revenue, period=20)
+        return result
 
     except Exception as e:
         # Return NaN series in case of any error
@@ -292,24 +239,8 @@ def get_eps_consecutive_growth(eps: pd.Series) -> pd.Series:
         Time series of consecutive growth periods
     """
     try:
-        # Handle missing values
-        if eps is None or eps.empty:
-            return pd.Series(dtype=float)
-
-        # Calculate growth rates
-        growth = get_eps_growth(eps)
-
-        # Initialize consecutive growth series
-        consecutive = pd.Series(0, index=eps.index)
-
-        # Calculate consecutive periods
-        for i in range(1, len(eps)):
-            if pd.isna(growth.iloc[i]) or growth.iloc[i] <= 0:
-                consecutive.iloc[i] = 0
-            else:
-                consecutive.iloc[i] = consecutive.iloc[i - 1] + 1
-
-        return consecutive
+        result = get_consecutive_number_of_growth(eps, period=20)
+        return result
 
     except Exception as e:
         # Return NaN series in case of any error

@@ -54,7 +54,7 @@ def get_debt_to_equity_ratio(
     return result
 
 def get_interest_coverage_ratio(
-        ebitda: pd.Series,
+        ebit: pd.Series,
         interest_expense: pd.Series) -> pd.Series:
     """
     Calculate the interest coverage ratio (ICR), a solvency ratio that measures a company's
@@ -64,7 +64,7 @@ def get_interest_coverage_ratio(
     a ratio of 2 or higher is considered safe.
 
     Args:
-        ebitda (pd.Series): Time series of EBITDA (Earnings Before Interest, Taxes, 
+        ebit (pd.Series): Time series of EBIT (Earnings Before Interest, Taxes,
                            Depreciation, and Amortization) values
         interest_expense (pd.Series): Time series of interest expense values
 
@@ -74,7 +74,7 @@ def get_interest_coverage_ratio(
     """
     # Handle zero interest expense by replacing with NaN
     safe_interest = interest_expense.replace(0, np.nan)
-    result = ebitda / abs(safe_interest)
+    result = ebit / abs(safe_interest)
     return result
 
 # ---------------------

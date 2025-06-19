@@ -137,18 +137,17 @@ def calculate_average(
 def get_consecutive_number_of_growth(dataset: pd.Series, period: int = 20) -> pd.Series:
     dataset = dataset.sort_index()  # Ensure time series is sorted
     growth = calculate_growth(dataset, lag=1)
-    # TODO: need to test
-    # growth = item.pct_change()
 
     results = pd.Series(index=dataset.index, dtype=int)
 
     for i in range(len(dataset)):
-        if i < period:  # Skip initial periods where we don't have full 20 quarters
-            continue
-
+        start = max(0, i - period)
         # Lookback last `period` quarters
-        growth_window = growth.iloc[i - period:i]
+        growth_window = growth.iloc[start:i]
 
+        # If no data yet (e.g., first element), skip
+        if growth_window.empty:
+            continue
         # Create boolean Series for positive growth
         growth_streak = growth_window > 0
 
@@ -281,6 +280,7 @@ class FrequencySelector:
             pd.Series or pd.DataFrame: TTM calculations for each date with available data
         """
         if isinstance(self._obj, pd.Series) or isinstance(self._obj, pd.DataFrame):
+            original_index = self._obj.index
             # Convert index to datetime if it's not already
             if not isinstance(self._obj.index, pd.DatetimeIndex):
                 obj = self._obj.copy()
@@ -335,7 +335,9 @@ class FrequencySelector:
                 
                 # Remove rows with all NaN values
                 result = result.dropna(how='all')
-            
+
+            if not isinstance(original_index, pd.DatetimeIndex):
+                result.index = result.index.date
             return result
         return self._obj
         
@@ -353,6 +355,7 @@ class FrequencySelector:
             pd.Series or pd.DataFrame: Trailing calculations for each date with sufficient history
         """
         if isinstance(self._obj, pd.Series) or isinstance(self._obj, pd.DataFrame):
+            original_index = self._obj.index
             # Convert index to datetime if it's not already
             if not isinstance(self._obj.index, pd.DatetimeIndex):
                 obj = self._obj.copy()
@@ -371,7 +374,6 @@ class FrequencySelector:
                 # Filter out NaN values from result
                 result = result.dropna()
                 
-                return result
             elif isinstance(obj, pd.DataFrame):
                 # For DataFrames: Apply the same logic column by column
                 result = pd.DataFrame(index=obj.index)
@@ -382,8 +384,9 @@ class FrequencySelector:
                 
                 # Filter out rows where all values are NaN
                 result = result.dropna(how='all')
-                
-                return result
+            if not isinstance(original_index, pd.DatetimeIndex):
+                result.index = result.index.date
+            return result
         return self._obj
     
     @property

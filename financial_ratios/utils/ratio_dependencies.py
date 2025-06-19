@@ -15,7 +15,7 @@ from typing import Set, List, Dict, Any, Optional
 RATIO_FIELD_DEPENDENCIES = {
     # Financial Health Ratios
     'get_debt_to_equity_ratio': {'Total Debt', 'Total Equity'},
-    'get_interest_coverage_ratio': {'EBITDA', 'Interest Expense'},
+    'get_interest_coverage_ratio': {'EBIT', 'Interest Expense'},
     'get_current_ratio': {'Total Current Assets', 'Total Current Liabilities'},
     'get_cash_conversion_cycle': {'Total Inventories', 'Cost of Goods Sold', 'Accounts Receivable',
                                   'Revenue', 'Accounts Payable'},
@@ -26,10 +26,10 @@ RATIO_FIELD_DEPENDENCIES = {
     # Earnings Ratios
     'get_piotroski_score_ratio': {'Net Income', 'Operating Cash Flow', 'Total Assets', 'Total Debt',
                                  'Total Current Assets', 'Total Current Liabilities', 'Shares Outstanding', 'Gross Margin',
-                                 'Total Assets Turnover'},
+                                 'Total Assets Turnover', 'Revenue', 'Cost of Goods Sold'},
     'get_revenue_growth_ratio': {'Revenue'},
     'get_eps_growth_ratio': {'Basic EPS'},
-    'get_roe_ratio': {'Net Income', 'Total Equity'},
+    'get_roe_ratio': {'Net Income', 'Total Equity', 'Total Liabilities'},
     'get_fcf_growth_ratio': {'Free Cash Flow'},
     'get_revenue_consecutive_growth_ratio': {'Revenue'},
     'get_eps_consecutive_growth_ratio': {'Basic EPS'},
@@ -44,7 +44,7 @@ RATIO_FIELD_DEPENDENCIES = {
     'get_ebitda_growth_vs_average_growth_ratio': {'EBITDA'},
     'get_gross_margin_growth_vs_average_growth_ratio': {'Gross Margin'},
     'get_return_on_assets_ratio': {'Net Income', 'Total Assets'},
-    'get_roe_vs_average_roe_ratio': {'Net Income', 'Total Equity'},
+    'get_roe_vs_average_roe_ratio': {'Net Income', 'Total Equity', 'Total Liabilities'},
     'get_roa_vs_average_roa_ratio': {'Net Income', 'Total Assets'},
     'get_revenue_vs_estimate_ratio': {'Revenue', 'Revenue Estimate'},
     'get_shares_outstanding_vs_estimate_ratio': {'Net Income', 'Basic EPS', 'Net Income Estimate', 'EPS Estimate'},
@@ -65,7 +65,7 @@ RATIO_FIELD_DEPENDENCIES = {
     'get_cmp_revenue_band_ratio': {'Stock Price', 'Revenue', 'Shares Outstanding'},
     'get_cmp_eps_band_ratio': {'Stock Price', 'Basic EPS'},
     'get_cmp_cfo_band_ratio': {'Stock Price', 'Operating Cash Flow', 'Shares Outstanding'},
-    'get_fcf_yield_ratio': {'Free Cash Flow', 'Stock Price', 'Shares Outstanding'}
+    'get_fcf_yield_ratio': {'Free Cash Flow', 'Stock Price', 'Shares Outstanding', 'Capital Expenditure'}
 
 }
 
