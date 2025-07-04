@@ -16,6 +16,7 @@ RETRY_LIMIT = 12
 # pylint: disable=comparison-with-itself,too-many-locals
 
 
+
 def calculate_growth(
     dataset: pd.Series | pd.DataFrame,
     lag: int | list[int] = 1,
@@ -23,84 +24,55 @@ def calculate_growth(
     axis: str | int = 0,
 ) -> pd.Series | pd.DataFrame:
     """
-    Calculates growth for a given dataset. Defaults to a lag of 1 (i.e. 1 year or 1 quarter).
+    Calculates directional growth using absolute value of previous value as base.
+    This avoids misleading % changes when previous value is negative.
 
     Args:
-        dataset (pd.Series | pd.DataFrame): the dataset to calculate the growth values for.
-        lag (int | str): the lag to use for the calculation. Defaults to 1.
+        dataset (pd.Series | pd.DataFrame): Input time series data.
+        lag (int | list[int]): Lag interval(s) to compute growth over.
+        rounding (int | None): Decimal rounding for output.
+        axis (str | int): Axis for DataFrame abs_pct_change. Default is 0 (index).
 
     Returns:
-        pd.Series | pd.DataFrame: _description_
+        pd.Series | pd.DataFrame: Growth values.
     """
-    # With Pandas 2.1, pct_change will no longer automatically forward fill
-    # given that this has been solved within the code already but the warning
-    # still appears, this is a temporary fix to ignore the warning
     warnings.simplefilter(action="ignore", category=FutureWarning)
 
+    def abs_pct_change(x, periods=1):
+        prev = x.shift(periods)
+        return (x - prev) / prev.abs()
+
+    if isinstance(dataset, pd.Series):
+        if isinstance(lag, list):
+            return pd.concat(
+                [abs_pct_change(dataset, l).round(rounding).rename(f"Lag {l}") for l in lag],
+                axis=1
+            )
+        return abs_pct_change(dataset, lag).round(rounding)
+
     if isinstance(lag, list):
-        new_index = []
-        lag_dict = {f"Lag {lag_value}": lag_value for lag_value in lag}
+        result = {}
+        for l in lag:
+            if axis == 1:
+                growth = dataset.T.pipe(abs_pct_change, periods=l).T
+            else:
+                growth = dataset.pipe(abs_pct_change, periods=l)
+            result[f"Lag {l}"] = growth.round(rounding)
+        return pd.concat(result, axis=1)
 
-        if axis == "columns":
-            for old_index in dataset.index:
-                for lag_value in lag_dict:
-                    new_index.append(
-                        (*old_index, lag_value)
-                        if isinstance(old_index, tuple)
-                        else (old_index, lag_value)
-                    )
+    # Single lag
+    if axis == 1:
+        return dataset.T.pipe(abs_pct_change, periods=lag).T.round(rounding)
+    else:
+        return dataset.pipe(abs_pct_change, periods=lag).round(rounding)
 
-            dataset_lag = pd.DataFrame(
-                index=pd.MultiIndex.from_tuples(new_index),
-                columns=dataset.columns,
-                dtype=np.float64,
-            )
-
-            for new_index in dataset_lag.index:
-                lag_key = new_index[-1]
-                other_indices = new_index[:-1]
-
-                dataset_lag.loc[new_index] = (
-                    dataset.loc[other_indices]
-                    .ffill()
-                    .pct_change(periods=lag_dict[lag_key])  # type: ignore
-                    .to_numpy()
-                )
-        else:
-            for old_index in dataset.columns:
-                for lag_value in lag_dict:
-                    new_index.append(
-                        (*old_index, lag_value)
-                        if isinstance(old_index, tuple)
-                        else (old_index, lag_value)
-                    )
-
-            dataset_lag = pd.DataFrame(
-                columns=pd.MultiIndex.from_tuples(new_index),
-                index=dataset.index,
-                dtype=np.float64,
-            )
-
-            for new_index in dataset_lag.columns:
-                lag_key = new_index[-1]
-                other_indices = new_index[:-1]
-
-                dataset_lag.loc[:, new_index] = (
-                    dataset.loc[:, other_indices]
-                    .ffill()
-                    .pct_change(periods=lag_dict[lag_key])  # type: ignore
-                    .to_numpy()
-                )
-
-        return dataset_lag.round(rounding)
-
-    return dataset.ffill().pct_change(periods=lag, axis=axis).round(rounding)
 
 
 def calculate_average(
     dataset: pd.Series,
     growth: bool = False,
     trailing: int | None = 20,
+    min_periods: int | None = 1,
     rounding: int | None = 4
 ) -> pd.Series | pd.DataFrame:
     """
@@ -128,7 +100,7 @@ def calculate_average(
 
     # Calculate trailing average of growth rates
     if trailing:
-        result = dataset.rolling(window=trailing).mean()
+        result = dataset.rolling(window=trailing, min_periods=min_periods).mean()
     else:
         result = dataset
         

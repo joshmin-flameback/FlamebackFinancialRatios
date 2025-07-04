@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from typing import Union
 
-from financial_ratios.utils.helpers import calculate_growth, get_consecutive_number_of_growth, calculate_average
+from financial_ratios.utils.helpers import calculate_growth, calculate_average
 
 """
 Financial Ratio Analysis Module
@@ -25,8 +25,8 @@ organized into the following categories:
    - get_average_revenue_growth
    - get_average_gross_margin
    - get_average_gross_margin_growth
-   - get_average_ebitda
-   - get_average_ebitda_growth
+   - get_average_ebitda_margin
+   - get_average_ebitda_margin_growth
    - get_average_eps_growth
 
 
@@ -153,12 +153,6 @@ def get_revenue_growth(revenue: pd.Series) -> pd.Series:
         if revenue is None or revenue.empty:
             return pd.Series(dtype=float)
         growth = calculate_growth(revenue)
-        # # Calculate growth rate
-        # prev_revenue = revenue.shift(1)
-        # growth = (revenue - prev_revenue) / prev_revenue.abs()
-        #
-        # # Cap extreme growth values at 1000% (10x)
-        # growth = growth.clip(-10, 10)
 
         # Handle invalid calculations
         growth = growth.replace([np.inf, -np.inf], np.nan)
@@ -188,10 +182,10 @@ def get_eps_growth(eps: pd.Series) -> pd.Series:
     try:
         if eps is None or eps.empty:
             return pd.Series(dtype=float)
+        eps = eps.replace([np.inf, -np.inf], np.nan)
 
         growth = calculate_growth(eps)
 
-        # growth = (eps - eps.shift(1)) / eps.shift(1).replace(0, np.nan)
         return growth.replace([np.inf, -np.inf], np.nan)
 
     except Exception as e:
@@ -216,7 +210,9 @@ def get_revenue_consecutive_growth(revenue: pd.Series) -> pd.Series:
         Time series of consecutive growth periods
     """
     try:
-        result = get_consecutive_number_of_growth(revenue, period=20)
+        growth = calculate_growth(revenue)
+        growth.replace([np.inf, -np.inf], np.nan)
+        result = (growth > 0).rolling(window=20, min_periods=1).sum()
         return result
 
     except Exception as e:
@@ -239,7 +235,9 @@ def get_eps_consecutive_growth(eps: pd.Series) -> pd.Series:
         Time series of consecutive growth periods
     """
     try:
-        result = get_consecutive_number_of_growth(eps, period=20)
+        growth = calculate_growth(eps)
+        growth.replace([0, np.inf, -np.inf], np.nan)
+        result = (growth > 0).rolling(window=20, min_periods=1).sum()
         return result
 
     except Exception as e:
@@ -269,14 +267,11 @@ def get_average_revenue_growth(revenue: pd.Series) -> pd.Series:
         if revenue is None or revenue.empty:
             return pd.Series(dtype=float)
 
-        # # Calculate growth rates
-        # growth = get_revenue_growth(revenue)
-
         # Calculate rolling average with more lenient min_periods
         avg_growth = calculate_average(revenue, growth=True, trailing=20)
 
         # Handle invalid calculations
-        avg_growth = avg_growth.replace([np.inf, -np.inf], np.nan)
+        avg_growth = avg_growth.replace([0, np.inf, -np.inf], np.nan)
 
         return avg_growth
 
@@ -305,7 +300,7 @@ def get_average_gross_margin(gross_margin: pd.Series) -> pd.Series:
             return pd.Series(dtype=float)
 
         # Calculate rolling average
-        avg_margin = calculate_average(gross_margin, trailing=20)
+        avg_margin = calculate_average(gross_margin, trailing=20, min_periods=1)
 
 
         # Handle invalid calculations
@@ -331,13 +326,13 @@ def get_average_gross_margin_growth(gross_margin: pd.Series) -> pd.Series:
     try:
         # Handle zero gross margin values
         safe_gross_margin = gross_margin.replace(0, np.nan)
-        growth_rates = calculate_growth(safe_gross_margin)
-        return calculate_average(growth_rates, trailing=20)
+
+        return calculate_average(safe_gross_margin, growth=True, trailing=20, min_periods=1)
     except Exception as e:
         return pd.Series(np.nan, index=gross_margin.index)
 
 
-def get_average_ebitda(ebitda: pd.Series) -> pd.Series:
+def get_average_ebitda_margin(ebitda: pd.Series, revenue: pd.Series) -> pd.Series:
     """
     Calculate the 20-period trailing average EBITDA.
 
@@ -353,15 +348,14 @@ def get_average_ebitda(ebitda: pd.Series) -> pd.Series:
         insufficient data or invalid calculations.
     """
     try:
-        if ebitda is None or ebitda.empty:
-            return pd.Series(dtype=float)
-            
-        return calculate_average(ebitda, trailing=20)
+        ebitda_margin = ebitda / revenue.replace(0, np.nan)
+
+        return calculate_average(ebitda_margin, trailing=20)
         
     except Exception as e:
         return pd.Series(np.nan, index=ebitda.index)
 
-def get_average_ebitda_growth(ebitda: pd.Series) -> pd.Series:
+def get_average_ebitda_margin_growth(ebitda: pd.Series, revenue = pd.Series) -> pd.Series:
     """
     Calculate the 20-period trailing average EBITDA growth rate.
 
@@ -377,11 +371,8 @@ def get_average_ebitda_growth(ebitda: pd.Series) -> pd.Series:
         insufficient data or invalid calculations.
     """
     try:
-        if ebitda is None or ebitda.empty:
-            return pd.Series(dtype=float)
-            
-        growth = calculate_growth(ebitda)
-        return calculate_average(growth, trailing=20)
+        ebitda_margin = ebitda / revenue.replace([0, np.inf, -np.inf], np.nan)
+        return calculate_average(ebitda_margin, growth=True, trailing=20)
         
     except Exception as e:
         return pd.Series(np.nan, index=ebitda.index)
@@ -404,9 +395,8 @@ def get_average_eps_growth(eps: pd.Series) -> pd.Series:
     try:
         if eps is None or eps.empty:
             return pd.Series(dtype=float)
-            
-        growth = calculate_growth(eps)
-        return calculate_average(growth, trailing=20)
+
+        return calculate_average(eps, growth=True, trailing=20)
         
     except Exception as e:
         return pd.Series(np.nan, index=eps.index)
@@ -440,13 +430,10 @@ def get_revenue_growth_vs_average_growth(revenue: pd.Series) -> pd.Series:
         avg_growth = get_average_revenue_growth(revenue)
 
         # Calculate ratio, handling negative averages
-        ratio = current_growth / avg_growth.abs().replace(0, np.nan)
-        
-        # If average growth is negative, flip the ratio sign
-        ratio = ratio * (avg_growth / avg_growth.abs()).fillna(1)
+        ratio = (current_growth - avg_growth) / avg_growth.replace([0, np.inf, -np.inf], np.nan)
 
         # Handle invalid calculations and cap extreme values
-        ratio = ratio.replace([np.inf, -np.inf], np.nan).clip(-10, 10)
+        ratio = ratio.replace([0, np.inf, -np.inf], np.nan)
 
         return ratio
 
@@ -470,13 +457,13 @@ def get_eps_growth_vs_average_growth(eps: pd.Series) -> pd.Series:
         safe_eps = eps.replace(0, np.nan)
         growth_rates = calculate_growth(safe_eps, lag=1)
         average_growth_rates = calculate_average(growth_rates, trailing=20)
-        return growth_rates / average_growth_rates
+        return (growth_rates - average_growth_rates) / average_growth_rates.replace(0, np.nan)
     except Exception as e:
         print("Error in Earnings Model: get_eps_growth_vs_average_growth", e)
         return pd.Series(np.nan, index=eps.index)
 
 
-def get_ebitda_growth_vs_average_growth(ebitda: pd.Series) -> pd.Series:
+def get_ebitda_margin_vs_average(ebitda: pd.Series, revenue: pd.Series) -> pd.Series:
     """
     Calculate the ratio of current EBITDA growth to its 20-period trailing average growth.
 
@@ -491,19 +478,21 @@ def get_ebitda_growth_vs_average_growth(ebitda: pd.Series) -> pd.Series:
         Time series of growth ratios (current growth / average growth). Returns NaN for
         periods with insufficient data or invalid calculations.
     """
+
     try:
         if ebitda is None or ebitda.empty:
             return pd.Series(dtype=float)
-            
-        current_growth = calculate_growth(ebitda)
-        avg_growth = get_average_ebitda_growth(ebitda)
-        return current_growth / avg_growth.replace(0, np.nan)
+        ebitda_margin = ebitda / revenue.replace(0, np.nan)
+
+        average = get_average_ebitda_margin(ebitda, revenue)
+
+        return (ebitda_margin - average) / average.replace(0, np.nan)
         
     except Exception as e:
         print("Error in Earnings Model: get_ebitda_growth_vs_average_growth", e)
         return pd.Series(np.nan, index=ebitda.index)
 
-def get_gross_margin_growth_vs_average_growth(gross_margin: pd.Series) -> pd.Series:
+def get_gross_margin_vs_average(gross_profit: pd.Series, revenue: pd.Series) -> pd.Series:
     """
     Calculate the ratio of current gross margin growth to its 20-period trailing average growth.
 
@@ -518,16 +507,18 @@ def get_gross_margin_growth_vs_average_growth(gross_margin: pd.Series) -> pd.Ser
         Time series of growth ratios (current growth / average growth). Returns NaN for
         periods with insufficient data or invalid calculations.
     """
+
     try:
-        if gross_margin is None or gross_margin.empty:
+        if gross_profit is None or gross_profit.empty:
             return pd.Series(dtype=float)
-            
-        current_growth = calculate_growth(gross_margin)
-        avg_growth = get_average_gross_margin_growth(gross_margin)
-        return current_growth / avg_growth.replace(0, np.nan)
+
+        gross_margin = gross_profit / revenue.replace(0, np.nan)
+
+        avg_gross_margin = get_average_gross_margin(gross_margin)
+        return (gross_margin - avg_gross_margin) / avg_gross_margin.replace(0, np.nan)
         
     except Exception as e:
-        return pd.Series(np.nan, index=gross_margin.index)
+        return pd.Series(np.nan, index=gross_profit.index)
 
 
 # ------------------
@@ -556,10 +547,10 @@ def get_return_on_equity(net_income: pd.Series, shareholders_equity: pd.Series) 
             return pd.Series(dtype=float)
 
         # Calculate ROE
-        roe = net_income / shareholders_equity.replace(0, np.nan)
+        roe = net_income / shareholders_equity.replace([0, np.inf, -np.inf], np.nan)
 
         # Handle invalid calculations
-        roe = roe.replace([np.inf, -np.inf], np.nan)
+        roe = roe.replace([0, np.inf, -np.inf], np.nan)
 
         return roe
 
@@ -591,7 +582,7 @@ def get_roe_vs_average_roe(net_income: pd.Series, shareholders_equity: pd.Series
             
         current_roe = get_return_on_equity(net_income, shareholders_equity)
         avg_roe = calculate_average(current_roe, trailing=20)
-        return current_roe / avg_roe.replace(0, np.nan)
+        return (current_roe-avg_roe) / avg_roe.replace(0, np.nan)
         
     except Exception as e:
         return pd.Series(np.nan, index=net_income.index)
@@ -625,7 +616,7 @@ def get_roa_vs_average_roa(net_income: pd.Series, assets: pd.Series) -> pd.Serie
 
         current_roa = net_income / assets.replace(0, np.nan)
         avg_roa = calculate_average(current_roa, trailing=20)
-        ratio = current_roa / avg_roa.replace(0, np.nan)
+        ratio = (current_roa-avg_roa) / avg_roa.replace(0, np.nan)
         ratio = ratio.replace([np.inf, -np.inf], np.nan)
         return ratio
     except Exception as e:
@@ -730,12 +721,6 @@ def get_free_cash_flow_growth(free_cash_flow: pd.Series) -> pd.Series:
         if free_cash_flow is None or free_cash_flow.empty:
             return pd.Series(dtype=float)
         growth = calculate_growth(free_cash_flow)
-
-        # # Calculate growth rate
-        # growth = (free_cash_flow - free_cash_flow.shift(1)) / free_cash_flow.shift(1).replace(0, np.nan)
-        #
-        # # Handle invalid calculations
-        # growth = growth.replace([np.inf, -np.inf], np.nan)
 
         return growth
 

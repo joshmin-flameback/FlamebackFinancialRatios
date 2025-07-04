@@ -36,13 +36,13 @@ RATIO_FIELD_DEPENDENCIES = {
     'get_average_revenue_growth_ratio': {'Revenue'},
     'get_average_gross_margin_ratio': {'Gross Margin'},
     'get_average_gross_margin_growth_ratio': {'Gross Margin'},
-    'get_average_ebitda_ratio': {'EBITDA'},
-    'get_average_ebitda_growth_ratio': {'EBITDA'},
+    'get_average_ebitda_margin_ratio': {'EBITDA', 'Revenue'},
+    'get_average_ebitda_margin_growth_ratio': {'EBITDA', 'Revenue'},
     'get_average_eps_growth_ratio': {'Basic EPS'},
     'get_revenue_growth_vs_average_growth_ratio': {'Revenue'},
     'get_eps_growth_vs_average_growth_ratio': {'Basic EPS'},
-    'get_ebitda_growth_vs_average_growth_ratio': {'EBITDA'},
-    'get_gross_margin_growth_vs_average_growth_ratio': {'Gross Margin'},
+    'get_ebitda_margin_vs_average_ratio': {'EBITDA', 'Revenue'},
+    'get_gross_margin_vs_average_ratio': {'Gross Profit', 'Revenue'},
     'get_return_on_assets_ratio': {'Net Income', 'Total Assets'},
     'get_roe_vs_average_roe_ratio': {'Net Income', 'Total Equity', 'Total Liabilities'},
     'get_roa_vs_average_roa_ratio': {'Net Income', 'Total Assets'},
@@ -53,19 +53,19 @@ RATIO_FIELD_DEPENDENCIES = {
     # Quality Ratios
     'get_aicr_ratio': {'Net Income', 'Total Assets', 'Total Liabilities', 'Dividends Paid'},
     'get_profit_dip_ratio': {'Net Income'},
-    'get_roic_band_ratio': {'Invested Capital', 'NOPAT'},
-    'get_cfo_band_ratio': {'Cash Flow from Operations'},
+    'get_roic_band_ratio': {'Invested Capital', 'EBIT', 'Tax Rate'},
+    'get_cfo_band_ratio': {'Operating Cash Flow'},
     'get_fcf_dip_ratio': {'Free Cash Flow'},
     'get_negative_fcf_ratio': {'Free Cash Flow'},
-    'get_cfo_profit_band_ratio': {'Cash Flow from Operations', 'Net Income'},
+    'get_cfo_profit_ratio': {'Operating Cash Flow', 'Net Income'},
 
     # Valuation Ratios
-    'get_steady_state_value_ratio': {'Basic EPS', 'WACC', 'Stock Price'},
-    'get_fair_value_ratio': {'Net Income', 'Total Assets', 'Total Liabilities', 'Basic EPS', 'Stock Price'},
+    'get_steady_state_value_ratio': { 'Stock Price', 'WACC', 'Shares Outstanding', 'EBIT', 'Tax Rate'},
+    'get_fair_value_ratio': {'Net Income', 'Total Assets', 'Total Liabilities', 'Basic EPS', 'Stock Price', 'Dividends Paid'},
     'get_cmp_revenue_band_ratio': {'Stock Price', 'Revenue', 'Shares Outstanding'},
     'get_cmp_eps_band_ratio': {'Stock Price', 'Basic EPS'},
     'get_cmp_cfo_band_ratio': {'Stock Price', 'Operating Cash Flow', 'Shares Outstanding'},
-    'get_fcf_yield_ratio': {'Free Cash Flow', 'Stock Price', 'Shares Outstanding', 'Capital Expenditure'}
+    'get_fcf_yield_ratio': {'Free Cash Flow', 'Stock Price', 'Shares Outstanding'}
 
 }
 

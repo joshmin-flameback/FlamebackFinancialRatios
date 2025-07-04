@@ -10,13 +10,13 @@ from financial_ratios.earnings_model import (
     get_average_revenue_growth,
     get_average_gross_margin,
     get_average_gross_margin_growth,
-    get_average_ebitda,
-    get_average_ebitda_growth,
+    get_average_ebitda_margin,
+    get_average_ebitda_margin_growth,
     get_average_eps_growth,
     get_revenue_growth_vs_average_growth,
     get_eps_growth_vs_average_growth,
-    get_ebitda_growth_vs_average_growth,
-    get_gross_margin_growth_vs_average_growth,
+    get_ebitda_margin_vs_average,
+    get_gross_margin_vs_average,
     get_return_on_equity,
     get_roe_vs_average_roe,
     get_return_on_assets,
@@ -264,7 +264,7 @@ def test_average_ebitda(sample_data):
 
 def test_average_ebitda_growth(sample_data):
     """Test average EBITDA growth calculation including edge cases."""
-    result = get_average_ebitda_growth(sample_data['ebitda'])
+    result = get_average_ebitda_margin_growth(sample_data['ebitda'])
 
     # First period - insufficient data
     assert pd.isna(result[0])
@@ -336,7 +336,7 @@ def test_eps_growth_vs_average_growth(sample_data):
 
 def test_ebitda_growth_vs_average_growth(sample_data):
     """Test EBITDA growth vs average growth calculation including edge cases."""
-    result = get_ebitda_growth_vs_average_growth(sample_data['ebitda'])
+    result = get_ebitda_margin_vs_average(sample_data['ebitda'], )
 
     # First period - insufficient data
     assert pd.isna(result[0])

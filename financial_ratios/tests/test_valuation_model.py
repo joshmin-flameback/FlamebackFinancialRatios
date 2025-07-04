@@ -36,11 +36,7 @@ def sample_data(time_index):
 
 def test_steady_state_value(sample_data):
     """Test steady state value calculation including edge cases."""
-    result = get_steady_state_value(
-        sample_data['eps'],
-        sample_data['wacc'],
-        sample_data['current_price']
-    )
+    result = get_steady_state_value(sample_data['eps'], sample_data['wacc'], sample_data['current_price'])
     
     # First period should have valid value
     assert pd.notna(result.iloc[0])

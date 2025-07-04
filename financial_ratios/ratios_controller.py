@@ -503,14 +503,14 @@ class Ratios:
             avg_revenue_growth = self.get_average_revenue_growth_ratio()
             avg_gross_margin = self.get_average_gross_margin_ratio()
             avg_gross_margin_growth = self.get_average_gross_margin_growth_ratio()
-            avg_ebitda = self.get_average_ebitda_ratio()
-            avg_ebitda_growth = self.get_average_ebitda_growth_ratio()
+            avg_ebitda = self.get_average_ebitda_margin_ratio()
+            avg_ebitda_growth = self.get_average_ebitda_margin_growth_ratio()
             avg_eps_growth = self.get_average_eps_growth_ratio()
             # Growth comparison metrics
             revenue_growth_vs_avg = self.get_revenue_growth_vs_average_growth_ratio(freq=FrequencyType.TTM)
             eps_growth_vs_avg = self.get_eps_growth_vs_average_growth_ratio(freq=FrequencyType.TTM)
-            ebitda_growth_vs_avg = self.get_ebitda_growth_vs_average_growth_ratio(freq=FrequencyType.TTM)
-            gross_margin_growth_vs_avg = self.get_gross_margin_growth_vs_average_growth_ratio(freq=FrequencyType.TTM)
+            ebitda_growth_vs_avg = self.get_ebitda_margin_vs_average_ratio(freq=FrequencyType.TTM)
+            gross_margin_growth_vs_avg = self.get_gross_margin_vs_average_ratio(freq=FrequencyType.TTM)
             # Return metrics
             roe = self.get_roe_ratio(freq=FrequencyType.TTM)
             roe_vs_avg = self.get_roe_vs_average_roe_ratio(freq=FrequencyType.TTM)
@@ -626,7 +626,6 @@ class Ratios:
                 total_debt = total_debt.freq.FY
                 current_assets = current_assets.freq.FY
                 current_liabilities = current_liabilities.freq.FY
-                shares_outstanding = shares_outstanding.freq.FY
                 revenue = revenue.freq.FY
                 cogs = cogs.freq.FY
             elif freq == FrequencyType.TTM:
@@ -637,7 +636,6 @@ class Ratios:
                 total_debt = total_debt.freq.TTM
                 current_assets = current_assets.freq.TTM
                 current_liabilities = current_liabilities.freq.TTM
-                shares_outstanding = shares_outstanding.freq.TTM
                 revenue = revenue.freq.TTM
                 cogs = cogs.freq.TTM
 
@@ -649,7 +647,6 @@ class Ratios:
             total_debt = total_debt.rolling(trailing).mean()
             current_assets = current_assets.rolling(trailing).mean()
             current_liabilities = current_liabilities.rolling(trailing).mean()
-            shares_outstanding = shares_outstanding.rolling(trailing).mean()
             revenue = revenue.rolling(trailing).mean()
             cogs = cogs.rolling(trailing).mean()
 
@@ -843,7 +840,8 @@ class Ratios:
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 net_income = net_income.freq.TTM
-                shareholders_equity = shareholders_equity.freq.TTM
+                shareholders_equity = shareholders_equity.freq.TTM / 4
+
 
         # Apply trailing if specified (for backward compatibility)
         if trailing:
@@ -1195,7 +1193,7 @@ class Ratios:
         return self._process_ratio_result(result_df, growth, lag, rounding)
     
     @handle_errors
-    def get_average_ebitda_ratio(
+    def get_average_ebitda_margin_ratio(
             self,
             rounding: int | None = None,
             growth: bool = False,
@@ -1221,24 +1219,28 @@ class Ratios:
         """
         # Get required series from financial data
         ebitda = self._financial_data['EBITDA']
+        revenue = self._financial_data['Revenue']
 
         # Apply frequency transformation if requested
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
                 ebitda = ebitda.freq.FY
+                revenue = revenue.freq.FY
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 ebitda = ebitda.freq.TTM
+                revenue = revenue.freq.TTM
 
         # Apply trailing if specified (for backward compatibility)
         if trailing:
             ebitda = ebitda.rolling(trailing).mean()
+            revenue = revenue.rolling(trailing).mean()
 
-        result = earnings_model.get_average_ebitda(ebitda)
+        result = earnings_model.get_average_ebitda_margin(ebitda, revenue)
         
         # Name based on frequency used
-        ratio_name = 'Average EBITDA (20p)'
+        ratio_name = 'Average EBITDA Margin (20p)'
         if freq == FrequencyType.TTM:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
@@ -1250,7 +1252,7 @@ class Ratios:
         return self._process_ratio_result(result_df, growth, lag, rounding)
     
     @handle_errors
-    def get_average_ebitda_growth_ratio(
+    def get_average_ebitda_margin_growth_ratio(
             self,
             rounding: int | None = None,
             growth: bool = False,
@@ -1276,24 +1278,28 @@ class Ratios:
         """
         # Get required series from financial data
         ebitda = self._financial_data['EBITDA']
+        revenue = self._financial_data['Revenue']
 
         # Apply frequency transformation if requested
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
                 ebitda = ebitda.freq.FY
+                revenue = revenue.freq.FY
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 ebitda = ebitda.freq.TTM
+                revenue = revenue.freq.TTM
 
         # Apply trailing if specified (for backward compatibility)
         if trailing:
             ebitda = ebitda.rolling(trailing).mean()
+            revenue = revenue.rolling(trailing).mean()
 
-        result = earnings_model.get_average_ebitda_growth(ebitda)
+        result = earnings_model.get_average_ebitda_margin_growth(ebitda, revenue)
         
         # Name based on frequency used
-        ratio_name = 'Average EBITDA Growth (20p)'
+        ratio_name = 'Average EBITDA Margin Growth (20p)'
         if freq == FrequencyType.TTM:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
@@ -1472,7 +1478,7 @@ class Ratios:
         return self._process_ratio_result(result_df, growth, lag, rounding)
     
     @handle_errors
-    def get_ebitda_growth_vs_average_growth_ratio(
+    def get_ebitda_margin_vs_average_ratio(
             self,
             rounding: int | None = None,
             growth: bool = False,
@@ -1498,24 +1504,28 @@ class Ratios:
         """
         # Get required series from financial data
         ebitda = self._financial_data['EBITDA']
+        revenue = self._financial_data['Revenue']
 
         # Apply frequency transformation if requested
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
                 ebitda = ebitda.freq.FY
+                revenue = revenue.freq.FY
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 ebitda = ebitda.freq.TTM
+                revenue = revenue.freq.TTM
 
         # Apply trailing if specified (for backward compatibility)
         if trailing:
             ebitda = ebitda.rolling(trailing).mean()
+            revenue = revenue.rolling(trailing).mean()
 
-        result = earnings_model.get_ebitda_growth_vs_average_growth(ebitda)
+        result = earnings_model.get_ebitda_margin_vs_average(ebitda, revenue)
         
         # Name based on frequency used
-        ratio_name = 'EBITDA Growth vs Avg Growth'
+        ratio_name = 'EBITDA Margin vs Avg EBITDA'
         if freq == FrequencyType.TTM:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
@@ -1527,7 +1537,7 @@ class Ratios:
         return self._process_ratio_result(result_df, growth, lag, rounding)
     
     @handle_errors
-    def get_gross_margin_growth_vs_average_growth_ratio(
+    def get_gross_margin_vs_average_ratio(
             self,
             rounding: int | None = None,
             growth: bool = False,
@@ -1552,22 +1562,26 @@ class Ratios:
             pd.DataFrame: Growth ratio values (current growth / average growth).
         """
         # Get required series from financial data
-        gross_margin = self._financial_data['Gross Margin']
+        gross_profit = self._financial_data['Gross Profit']
+        revenue = self._financial_data['Revenue']
 
         # Apply frequency transformation if requested
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                gross_margin = gross_margin.freq.FY
+                gross_profit = gross_profit.freq.FY
+                revenue = revenue.freq.FY
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
-                gross_margin = gross_margin.freq.TTM
+                gross_profit = gross_profit.freq.TTM
+                revenue = revenue.freq.TTM
 
         # Apply trailing if specified (for backward compatibility)
         if trailing:
-            gross_margin = gross_margin.rolling(trailing).mean()
+            gross_profit = gross_profit.rolling(trailing).mean()
+            revenue = revenue.rolling(trailing).mean()
 
-        result = earnings_model.get_gross_margin_growth_vs_average_growth(gross_margin)
+        result = earnings_model.get_gross_margin_vs_average(gross_profit, revenue)
         
         # Name based on frequency used
         ratio_name = 'Gross Margin Growth vs Avg Growth'
@@ -1627,12 +1641,11 @@ class Ratios:
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 net_income = net_income.freq.TTM
-                shareholders_equity = shareholders_equity.freq.TTM
+                shareholders_equity = shareholders_equity.freq.TTM / 4
 
         # Apply trailing if specified (for backward compatibility)
         if trailing:
             net_income = net_income.rolling(trailing).mean()
-            shareholders_equity = shareholders_equity.rolling(trailing).mean()
 
         result = earnings_model.get_roe_vs_average_roe(net_income, shareholders_equity)
         
@@ -1687,7 +1700,7 @@ class Ratios:
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 net_income = net_income.freq.TTM
-                total_assets = total_assets.freq.TTM
+                total_assets = total_assets.freq.TTM / 4
 
         # Apply trailing if specified (for backward compatibility)
         if trailing:
@@ -1747,7 +1760,7 @@ class Ratios:
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 net_income = net_income.freq.TTM
-                total_assets = total_assets.freq.TTM
+                total_assets = total_assets.freq.TTM / 4
 
         # Apply trailing if specified (for backward compatibility)
         if trailing:
@@ -1991,12 +2004,12 @@ class Ratios:
         cfo_band = self.get_cfo_band_ratio(freq=FrequencyType.FY)
         fcf_dip = self.get_fcf_dip_ratio(freq=FrequencyType.FY)
         negative_fcf = self.get_negative_fcf_ratio(freq=FrequencyType.FY)
-        cfo_profit_band = self.get_cfo_profit_band_ratio(freq=FrequencyType.FY)
+        cfo_profit = self.get_cfo_profit_ratio(freq=FrequencyType.FY)
 
         # Combine all ratios
         self._quality_ratios = pd.concat([
             aicr, profit_dip, roic_band, cfo_band,
-            fcf_dip, negative_fcf, cfo_profit_band
+            fcf_dip, negative_fcf, cfo_profit
         ], axis=1)
 
         # Process and return the results
@@ -2161,25 +2174,26 @@ class Ratios:
         # Get required series from financial data
         # Using calculated fields from field_normalizer
         invested_capital = self._financial_data['Invested Capital']
-        nopat = self._financial_data['NOPAT']  # Net Operating Profit After Tax
+        ebit = self._financial_data['EBIT']
+        tax_rate = self._financial_data['Tax Rate']
 
         # Apply frequency transformation if requested
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
                 invested_capital = invested_capital.freq.FY
-                nopat = nopat.freq.FY
+                ebit = ebit.freq.FY
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 invested_capital = invested_capital.freq.TTM
-                nopat = nopat.freq.TTM
+                ebit = ebit.freq.TTM
 
         # Apply trailing if specified (for backward compatibility)
         if trailing:
             invested_capital = invested_capital.rolling(trailing).mean()
-            nopat = nopat.rolling(trailing).mean()
+            ebit = ebit.rolling(trailing).mean()
 
-        result = quality_model.get_roic_band(invested_capital,nopat)
+        result = quality_model.get_roic_band(invested_capital,ebit,tax_rate)
 
         # Name based on frequency used
         ratio_name = 'ROIC Band'
@@ -2215,7 +2229,7 @@ class Ratios:
         Returns:
             pd.DataFrame: CFO band ratio values.
         """
-        cfo = self._financial_data['Cash Flow from Operations']
+        cfo = self._financial_data['Operating Cash Flow']
 
         # Apply frequency transformation if requested
         if freq is not None:
@@ -2344,7 +2358,7 @@ class Ratios:
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
     @handle_errors
-    def get_cfo_profit_band_ratio(
+    def get_cfo_profit_ratio(
             self,
             rounding: int | None = None,
             growth: bool = False,
@@ -2365,7 +2379,7 @@ class Ratios:
         Returns:
             pd.DataFrame: FCF to profit band ratio values.
         """
-        cfo = self._financial_data['Cash Flow from Operations']
+        cfo = self._financial_data['Operating Cash Flow']
         net_profit = self._financial_data['Net Income']
         
         # Apply frequency transformation if requested
@@ -2383,10 +2397,10 @@ class Ratios:
             cfo = cfo.T.rolling(trailing).mean().T
             net_profit = net_profit.T.rolling(trailing).mean().T
 
-        result = quality_model.get_cfo_to_net_profit_band(cfo, net_profit)
+        result = quality_model.get_cfo_to_net_profit(cfo, net_profit)
         
         # Name based on frequency used
-        ratio_name = 'CFO to Profit Band'
+        ratio_name = 'CFO to Profit'
         if freq == FrequencyType.TTM:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
@@ -2433,19 +2447,19 @@ class Ratios:
         """
         # Calculate all valuation ratios with the appropriate frequency
         if self._quarterly:
-            steady_state = self.get_steady_state_value_ratio()
             cmp_revenue = self.get_cmp_revenue_band_ratio(freq=FrequencyType.TTM)
             cmp_eps = self.get_cmp_eps_band_ratio(freq=FrequencyType.TTM)
 
             # Combine all ratios
             self._valuation_ratios = pd.concat([
-                steady_state, cmp_revenue, cmp_eps], axis=1)
+                 cmp_revenue, cmp_eps], axis=1)
         else:
+            steady_state = self.get_steady_state_value_ratio(freq=FrequencyType.FY)
             fair_value = self.get_fair_value_ratio(freq=FrequencyType.FY)
             cmp_cfo = self.get_cmp_cfo_band_ratio(freq=FrequencyType.FY)
             fcf_yield = self.get_fcf_yield_ratio(freq=FrequencyType.FY)
             self._valuation_ratios = pd.concat([
-                fair_value , cmp_cfo, fcf_yield], axis=1)
+                steady_state, fair_value , cmp_cfo, fcf_yield], axis=1)
 
 
 
@@ -2481,30 +2495,38 @@ class Ratios:
             pd.DataFrame: Steady State Value ratio.
         """
         # Get required series from financial data
-        eps = self._financial_data['Basic EPS']
+        price = self._financial_data['Stock Price']
         wacc = self._financial_data['WACC']
-        current_price = self._financial_data['Stock Price']
+        shares_outstanding = self._financial_data['Shares Outstanding']
+        ebit = self._financial_data['EBIT']
+        tax_rate = self._financial_data['Tax Rate']
 
         # Apply frequency transformation if requested
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                eps = eps.freq.FY
+                price = price.freq.FY
                 wacc = wacc.freq.FY
+                ebit = ebit.freq.FY
+                tax_rate = tax_rate.freq.FY
                 # Current price typically doesn't get frequency treatment
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
-                eps = eps.freq.TTM
+                price = price.freq.TTM
                 wacc = wacc.freq.TTM
+                ebit = ebit.freq.TTM
+                tax_rate = tax_rate.freq.TTM
                 # Current price typically doesn't get frequency treatment
 
         # Apply trailing if specified (for backward compatibility)
         if trailing:
-            eps = eps.rolling(trailing).mean()
+            price = price.rolling(trailing).mean()
             wacc = wacc.rolling(trailing).mean()
+            ebit = ebit.rolling(trailing).mean()
+            tax_rate = tax_rate.rolling(trailing).mean()
 
 
-        result = valuation_model.get_steady_state_value(eps, wacc, current_price)
+        result = valuation_model.get_steady_state_value(price, wacc, shares_outstanding, ebit, tax_rate)
         
         # Name based on frequency used
         ratio_name = 'Steady State Value'
@@ -2553,6 +2575,7 @@ class Ratios:
         total_liabilities = self._financial_data['Total Liabilities']
         eps = self._financial_data['Basic EPS']
         current_price = self._financial_data['Stock Price']
+        dividends_paid = self._financial_data['Dividends Paid']
 
         # Apply frequency transformation if requested
         if freq is not None:
@@ -2562,6 +2585,7 @@ class Ratios:
                 total_assets = total_assets.freq.FY
                 total_liabilities = total_liabilities.freq.FY
                 eps = eps.freq.FY
+                dividends_paid = dividends_paid.freq.FY
                 # Stock price typically doesn't get frequency treatment
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
@@ -2569,6 +2593,7 @@ class Ratios:
                 total_assets = total_assets.freq.TTM
                 total_liabilities = total_liabilities.freq.TTM
                 eps = eps.freq.TTM
+                dividends_paid = dividends_paid.freq.TTM
                 # Stock price typically doesn't get frequency treatment
 
         # Apply trailing if specified (for backward compatibility)
@@ -2577,10 +2602,10 @@ class Ratios:
             total_assets = total_assets.rolling(trailing).mean()
             total_liabilities = total_liabilities.rolling(trailing).mean()
             eps = eps.rolling(trailing).mean()
-            current_price = current_price.rolling(trailing).mean()
+            dividends_paid = dividends_paid.rolling(trailing).mean()
 
         result = valuation_model.get_fair_value_vs_market_price(
-            net_income, total_assets, total_liabilities, eps, current_price
+            net_income, total_assets, total_liabilities, eps, current_price, dividends_paid
         )
         
         # Name based on frequency used
@@ -2639,19 +2664,16 @@ class Ratios:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
                 revenue = revenue.freq.FY
-                shares_outstanding = shares_outstanding.freq.FY
                 # Stock price typically doesn't get frequency treatment
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 revenue = revenue.freq.TTM
-                shares_outstanding = shares_outstanding.freq.TTM
                 # Stock price typically doesn't get frequency treatment
 
         # Apply trailing if specified (for backward compatibility)
         if trailing:
             price = price.rolling(trailing).mean()
             revenue = revenue.rolling(trailing).mean()
-            shares_outstanding = shares_outstanding.rolling(trailing).mean()
 
         result = valuation_model.get_price_to_revenue_band(price, revenue, shares_outstanding)
 
@@ -2742,7 +2764,7 @@ class Ratios:
             freq: FrequencyType = None,
     ) -> pd.DataFrame:
         """
-        Calculate the Price to Cash Flow from Operations (P/CFO) Band ratio.
+        Calculate the Price to Operating Cash Flow (P/CFO) Band ratio.
 
         This metric shows how current P/CFO ratio deviates from its historical average.
         Valuable because:
@@ -2759,7 +2781,7 @@ class Ratios:
 
         Required columns in financial_data:
             - Stock_Price: For stock price values
-            - Operating_Cash_Flow: For Cash Flow from Operations values
+            - Operating_Cash_Flow: For Operating Cash Flow values
             - Shares_Outstanding: For shares outstanding values
 
         Returns:
@@ -2776,19 +2798,16 @@ class Ratios:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
                 cfo = cfo.freq.FY
-                shares_outstanding = shares_outstanding.freq.FY
                 # Stock price typically doesn't get frequency treatment
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 cfo = cfo.freq.TTM
-                shares_outstanding = shares_outstanding.freq.TTM
                 # Stock price typically doesn't get frequency treatment
 
         # Apply trailing if specified (for backward compatibility)
         if trailing:
             price = price.rolling(trailing).mean()
             cfo = cfo.rolling(trailing).mean()
-            shares_outstanding = shares_outstanding.rolling(trailing).mean()
 
         result = valuation_model.get_price_to_cfo_band(price, cfo, shares_outstanding)
 
@@ -2830,7 +2849,7 @@ class Ratios:
             freq (FrequencyType, optional): Frequency type to apply (FY for fiscal year, TTM for trailing twelve months).
 
         Required columns in financial_data:
-            - Operating_Cash_Flow: For cash flow from operations
+            - Operating_Cash_Flow: For Operating Cash Flow
             - Capital_Expenditure: For capital expenditure
             - Shares_Outstanding: For shares outstanding
             - Stock_Price: For current market price
@@ -2840,8 +2859,7 @@ class Ratios:
             Returns NaN for periods with zero market cap or insufficient data.
         """
         # Get required series from financial data
-        cfo = self._financial_data['Operating Cash Flow']
-        capex = self._financial_data['Capital Expenditure']
+        fcf = self._financial_data['Free Cash Flow']
         shares_outstanding = self._financial_data['Shares Outstanding']
         price = self._financial_data['Stock Price']
         
@@ -2849,25 +2867,18 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                cfo = cfo.freq.FY
-                capex = capex.freq.FY
-                shares_outstanding = shares_outstanding.freq.FY
+                fcf = fcf.freq.FY
                 # Stock price typically doesn't get frequency treatment
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
-                cfo = cfo.freq.TTM
-                capex = capex.freq.TTM
-                shares_outstanding = shares_outstanding.freq.TTM
+                fcf = fcf.freq.TTM
                 # Stock price typically doesn't get frequency treatment
-        
-        # Calculate Free Cash Flow after frequency adjustments
-        fcf = cfo - capex
+
 
         # Apply trailing if specified (for backward compatibility)
         if trailing:
             fcf = fcf.rolling(trailing).mean()
             price = price.rolling(trailing).mean()
-            shares_outstanding = shares_outstanding.rolling(trailing).mean()
 
         result = valuation_model.get_fcf_yield(fcf, price, shares_outstanding)
         

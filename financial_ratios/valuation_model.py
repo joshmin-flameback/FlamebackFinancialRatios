@@ -31,9 +31,11 @@ values for those specific time periods, maintaining the time series structure.
 # ---------------------------
 
 def get_steady_state_value(
-        eps: pd.Series,
+        price : pd.Series,
         wacc: pd.Series,
-        current_price: pd.Series
+        shares_outstanding: pd.Series,
+        ebit: pd.Series,
+        tax_rate: pd.Series,
 ) -> pd.Series:
     """
     Calculate the Steady State Value, which measures how much a stock is over/undervalued
@@ -49,27 +51,29 @@ def get_steady_state_value(
         - WACC: Weighted Average Cost of Capital
 
     Args:
-        eps (pd.Series): Time series of Earnings Per Share values
+        nopat (pd.Series): Time series of Earnings Per Share values
         wacc (pd.Series): Time series of Weighted Average Cost of Capital values
-        current_price (pd.Series): Time series of current stock prices
+        shares_outstanding (pd.Series): Time series of current stock prices
 
     Returns:
         pd.Series: Time series of Steady State Value in percentage. Returns NaN for periods
                   with zero WACC or current price, or insufficient data.
     """
     # Handle zero values
-    safe_wacc = wacc.replace(0, np.nan)
-    safe_price = current_price.replace(0, np.nan)
-    
-    # Calculate steady state value
-    return (((eps / safe_wacc) / safe_price) - 1) * 100
+    wacc = wacc.replace(0, np.nan)/ 100
+    shares_outstanding = shares_outstanding.replace(0, np.nan)
+    price = price.replace(0, np.nan)
+    intrinsic_value = (((ebit * ((100 - tax_rate)/ 100)) / wacc)/ shares_outstanding)
+    steady_state_value = (intrinsic_value / price)
+    return steady_state_value
 
 def get_fair_value_vs_market_price(
         net_income: pd.Series,
         total_assets: pd.Series,
         total_liabilities: pd.Series,
         eps: pd.Series,
-        current_price: pd.Series
+        current_price: pd.Series,
+        dividends_paid: pd.Series
 ) -> pd.Series:
     """
     Calculate the fair value vs current market price ratio as a percentage, using a
@@ -105,7 +109,7 @@ def get_fair_value_vs_market_price(
         .intersection(total_liabilities.index)\
         .intersection(eps.index)\
         .intersection(current_price.index)
-    
+
     net_income = net_income.loc[common_index].sort_index()
     total_assets = total_assets.loc[common_index].sort_index()
     total_liabilities = total_liabilities.loc[common_index].sort_index()
@@ -116,23 +120,23 @@ def get_fair_value_vs_market_price(
     shareholder_equity = total_assets - total_liabilities
     safe_equity = shareholder_equity.replace(0, np.nan)
     roe = net_income / safe_equity
+    net_income = net_income.replace(0, np.nan)
+    dividend_payout_ratio = dividends_paid / net_income
+    retention_ratio = 1 - dividend_payout_ratio
+    rore = retention_ratio * roe
+    avg_rore = rore.rolling(window=5, min_periods=1).mean()
     
     safe_eps = eps.replace(0, np.nan)
-    eps_growth = (eps - eps.shift(1)) / safe_eps.shift(1)
+    eps_growth = (eps - eps.shift(1)) / abs(safe_eps.shift(1))
     
     pe_ratio = current_price / safe_eps
     # Use 3-year average for historical comparison , 12 Quarters
     avg_pe = pe_ratio.rolling(window=3, min_periods=1).mean()
 
-    # Calculate fair value ratio with NaN handling
-    fair_value_ratio = (
-        (np.log1p(roe.clip(lower=-0.99)) + eps_growth) *  # Prevent log(0) or log(negative)
-        (safe_eps * (1 + np.log1p(safe_eps.abs()))) *
-        avg_pe / current_price
-    ) - 1
+    fair_value_ratio = ((( 1 + (retention_ratio * avg_rore) ) * ( safe_eps * (1 + eps_growth) * avg_pe)) / current_price) - 1
 
     # Convert to percentage and handle infinities
-    return fair_value_ratio.replace([np.inf, -np.inf], np.nan).abs() * 100
+    return fair_value_ratio.replace([np.inf, -np.inf], np.nan) * 100
 
 # ------------------------
 # 2. Price Multiple Bands
@@ -181,11 +185,10 @@ def get_price_to_revenue_band(
     
     # Ensure sufficient data
     if len(ratio) < 1:
-        raise ValueError("Insufficient data: At least 12 periods required.")
+        raise ValueError("Insufficient data: At least one period required.")
     
     # Calculate band statistics with NaN handling
     # Use 3-year average for historical comparison
-    # TODO: check with malay
     mean_ratio = ratio.rolling(window=3, min_periods=1).mean()
     std_ratio = ratio.rolling(window=3, min_periods=1).std()
     safe_std_ratio = std_ratio.replace(0, np.nan)
@@ -232,7 +235,6 @@ def get_price_to_eps_band(
     
     # Calculate band statistics with NaN handling
     # Use 3-year average for historical comparison
-    # TODO: check with malay
     mean_ratio = ratio.rolling(window=3, min_periods=1).mean()
     std_ratio = ratio.rolling(window=3, min_periods=1).std()
     safe_std_ratio = std_ratio.replace(0, np.nan)
@@ -329,4 +331,4 @@ def get_fcf_yield(
     safe_market_cap = market_cap.replace(0, np.nan)
     
     # Calculate FCF yield and convert to percentage
-    return (fcf / safe_market_cap * 100).abs()
+    return (fcf / safe_market_cap) * 100

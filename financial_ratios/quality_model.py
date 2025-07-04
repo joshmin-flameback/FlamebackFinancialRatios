@@ -113,7 +113,8 @@ def get_dips_in_profit_over_10yrs(
 
 def get_roic_band(
         invested_capital: pd.Series,
-        nopat: pd.Series
+        ebit: pd.Series,
+        tax_rate: pd.Series,
 ) -> pd.Series:
     """
     Calculate the Return on Invested Capital (ROIC) Band percentage by comparing current ROIC
@@ -135,6 +136,9 @@ def get_roic_band(
         ValueError: If less than 5 periods of data are available or if all values are zero/NaN
     """
     # Handle zero values
+    tax_rate = tax_rate.replace(0, np.nan)
+    ebit = ebit.replace(0, np.nan)
+    nopat = ebit * (1 - tax_rate/100)
     safe_invested_capital = invested_capital.replace(0, np.nan)
     
     # Calculate ROIC
@@ -200,7 +204,7 @@ def get_negative_dips_in_fcf_over_10yrs(fcf: pd.Series) -> pd.Series:
         pd.Series: Time series of cumulative negative FCF change counts. Returns NaN for
                   periods with insufficient data (less than 10 years).
     """
-    fcf_change = fcf.pct_change(periods=1)
+    fcf_change = fcf.diff(periods=1)
 
     # Count negative changes and ensure integer output
     negative_changes = (fcf_change < 0).fillna(False).astype('int64')
@@ -227,7 +231,7 @@ def get_negative_fcf_years(fcf: pd.Series) -> pd.Series:
     rolling_sum = negative_years.rolling(window=10, min_periods=1).sum()
     return rolling_sum
 
-def get_cfo_to_net_profit_band(
+def get_cfo_to_net_profit(
         cfo: pd.Series,
         net_profit: pd.Series
 ) -> pd.Series:
@@ -256,11 +260,11 @@ def get_cfo_to_net_profit_band(
     # Calculate FCF to Net Profit ratio
     ratio = cfo / safe_net_profit
 
-    # Calculate rolling statistics with NaN handling
-    mean_ratio = ratio.rolling(window=10, min_periods=1).mean()
-    std_ratio = ratio.rolling(window=10, min_periods=1).std()
+    # # Calculate rolling statistics with NaN handling
+    # mean_ratio = ratio.rolling(window=10, min_periods=1).mean()
+    # std_ratio = ratio.rolling(window=10, min_periods=1).std()
+    #
+    # # Handle zero standard deviation
+    # safe_std_ratio = std_ratio.replace(0, np.nan)
     
-    # Handle zero standard deviation
-    safe_std_ratio = std_ratio.replace(0, np.nan)
-    
-    return (ratio - mean_ratio) / safe_std_ratio
+    return ratio
