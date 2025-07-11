@@ -150,8 +150,8 @@ class FrequencySelector:
     
     Example:
         equity_data = financial_data['Total Equity']
-        annual_equity = equity_data.annual  # Get annual data (March 31st values)
-        ttm_equity = equity_data.ttm  # Get TTM calculation
+        annual_equity = equity_data.freq.FY(exchange='NSE')  # Get annual data (fiscal year end values)
+        ttm_equity = equity_data.freq.TTM  # Get TTM calculation
     """
     
     def __init__(self, obj):
@@ -159,19 +159,27 @@ class FrequencySelector:
         
 
         
-    @property
-    def FY(self):
+    def FY(self, exchange='NSE'):
         """
-        Calculates the fiscal year sum (April 1st to March 31st) for each date.
+        Calculates the fiscal year sum for each date based on the exchange's fiscal year end date.
         
-        For dates that are March 31st (fiscal year-end), calculates the sum of all values 
-        in that fiscal year (from April 1st of previous year to March 31st of current year).
-        For other dates, finds the most recent fiscal year sum.
+        For Indian exchanges (NSE, BSE): April 1st to March 31st
+        For US exchanges (NYSE, NASDAQ): January 1st to December 31st
+        
+        For dates that are fiscal year-end dates, calculates the sum of all values
+        in that fiscal year. For other dates, finds the most recent fiscal year sum.
+        
+        Args:
+            exchange (str): Stock exchange code to determine fiscal year end date
+                           (e.g., 'NSE', 'BSE', 'NYSE', 'NASDAQ')
         
         Returns:
             pd.Series or pd.DataFrame: Financial year sums for each date
         """
         if isinstance(self._obj, pd.Series) or isinstance(self._obj, pd.DataFrame):
+            # Get fiscal year end month and day based on exchange
+            fy_end_month, fy_end_day = get_fiscal_year_end(exchange)
+            original_index = self._obj.index
             # Convert index to datetime if it's not already
             if not isinstance(self._obj.index, pd.DatetimeIndex):
                 obj = self._obj.copy()
@@ -191,15 +199,18 @@ class FrequencySelector:
             else:  # DataFrame
                 result = pd.DataFrame(index=all_dates, columns=obj.columns)
             
-            # Find all fiscal year ends (March 31st dates)
-            fiscal_year_ends = obj.index[(obj.index.month == 3) & (obj.index.day == 31)]
+            # Find all fiscal year ends based on exchange
+            fiscal_year_ends = obj.index[(obj.index.month == fy_end_month) & (obj.index.day == fy_end_day)]
             
             # Calculate fiscal year sums for each fiscal year end
             fiscal_year_sums = {}
             
             for fy_end in fiscal_year_ends:
-                # Calculate fiscal year start (April 1st of previous year)
-                fy_start = pd.Timestamp(year=fy_end.year-1, month=4, day=1)
+                # Calculate fiscal year start
+                if fy_end_month == 3:  # Indian fiscal year (April 1st to March 31st)
+                    fy_start = pd.Timestamp(year=fy_end.year-1, month=4, day=1)
+                elif fy_end_month == 12:  # US fiscal year (January 1st to December 31st)
+                    fy_start = pd.Timestamp(year=fy_end.year, month=1, day=1)
                 
                 # Get data for this fiscal year
                 fy_mask = (obj.index >= fy_start) & (obj.index <= fy_end)
@@ -234,7 +245,9 @@ class FrequencySelector:
                 result = result.dropna()
             else:  # DataFrame
                 result = result.dropna(how='all')
-            
+
+            if not isinstance(original_index, pd.DatetimeIndex):
+                result.index = result.index.date
             return result
         return self._obj
         
@@ -419,9 +432,26 @@ pd.api.extensions.register_series_accessor("freq")(FrequencySelector)
 pd.api.extensions.register_dataframe_accessor("freq")(FrequencySelector)
 
 
+def get_fiscal_year_end(exchange):
+    """
+    Determine fiscal year end month and day based on exchange.
+    
+    Args:
+        exchange (str): Stock exchange code (e.g., 'NSE', 'BSE', 'NYSE', 'NASDAQ')
+        
+    Returns:
+        tuple: (month, day) tuple representing fiscal year end date
+    """
+    # US exchanges (NYSE, NASDAQ) use calendar year (ending December 31)
+    if exchange in ['NYSE', 'NASDAQ']:
+        return (12, 31)  # December 31
+    # Indian exchanges (NSE, BSE) and others use fiscal year ending March 31
+    else:
+        return (3, 31)   # March 31
+
 class FrequencyType(Enum):
     """Frequency types for financial data calculations."""
-    FY = auto()    # Financial Year (April to March)
+    FY = auto()    # Financial Year (varies by exchange: Apr-Mar for Indian, Jan-Dec for US)
     TTM = auto()   # Trailing Twelve Months
 
 

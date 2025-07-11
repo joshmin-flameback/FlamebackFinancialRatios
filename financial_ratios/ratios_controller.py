@@ -15,6 +15,7 @@ class Ratios:
     def __init__(
         self,
         tickers: str | list[str],
+        exchange: str | list[str],
         financial_data: pd.DataFrame,
         quarterly: bool = False,
         rounding: int | None = 4,
@@ -38,6 +39,7 @@ class Ratios:
             rounding (int, optional): The number of decimals to round the results to. Defaults to 4.
         """
         self._tickers = tickers
+        self._exchange = exchange
         self._financial_data = financial_data
         self._rounding = rounding
         self._quarterly = quarterly
@@ -159,8 +161,8 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year (April-March) calculations
-                total_debt = total_debt.freq.FY
-                total_equity = total_equity.freq.FY
+                total_debt = total_debt.freq.FY(exchange=self._exchange)
+                total_equity = total_equity.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 total_debt = total_debt.freq.TTM
@@ -215,8 +217,8 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                ebit = ebit.freq.FY
-                interest_expense = interest_expense.freq.FY
+                ebit = ebit.freq.FY(exchange=self._exchange)
+                interest_expense = interest_expense.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 ebit = ebit.freq.TTM
@@ -227,14 +229,14 @@ class Ratios:
             interest_expense = interest_expense.rolling(trailing).sum()
 
         result = financial_health_model.get_interest_coverage_ratio(ebit, interest_expense)
-        
+
         # Name based on frequency used
         ratio_name = 'Interest Coverage'
         if freq == FrequencyType.TTM or trailing:
             ratio_name = 'TTM ' + ratio_name
         elif freq == FrequencyType.FY:
             ratio_name = 'FY ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
@@ -269,8 +271,8 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                current_assets = current_assets.freq.FY
-                current_liabilities = current_liabilities.freq.FY
+                current_assets = current_assets.freq.FY(exchange=self._exchange)
+                current_liabilities = current_liabilities.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 current_assets = current_assets.freq.TTM
@@ -281,7 +283,7 @@ class Ratios:
             current_liabilities = current_liabilities.rolling(trailing).mean()
 
         result = financial_health_model.get_current_ratio(current_assets, current_liabilities)
-        
+
         # Name based on frequency used
         ratio_name = 'Current Ratio'
         if freq == FrequencyType.TTM:
@@ -290,7 +292,7 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
@@ -333,11 +335,11 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                inventory = inventory.freq.FY
-                cogs = cogs.freq.FY
-                accounts_receivable = accounts_receivable.freq.FY
-                revenue = revenue.freq.FY
-                accounts_payable = accounts_payable.freq.FY
+                inventory = inventory.freq.FY(exchange=self._exchange)
+                cogs = cogs.freq.FY(exchange=self._exchange)
+                accounts_receivable = accounts_receivable.freq.FY(exchange=self._exchange)
+                revenue = revenue.freq.FY(exchange=self._exchange)
+                accounts_payable = accounts_payable.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 inventory = inventory.freq.TTM
@@ -356,7 +358,7 @@ class Ratios:
         result = financial_health_model.get_cash_conversion_cycle(
             inventory, cogs, accounts_receivable, revenue, accounts_payable, days
         )
-        
+
         # Name based on frequency used
         ratio_name = 'Cash Conversion Cycle'
         if freq == FrequencyType.TTM:
@@ -365,7 +367,7 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
@@ -407,14 +409,14 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                current_assets = current_assets.freq.FY
-                current_liabilities = current_liabilities.freq.FY
-                total_assets = total_assets.freq.FY
-                ebit = ebit.freq.FY
-                diluted_shares = diluted_shares.freq.FY
-                revenue = revenue.freq.FY
-                total_liabilities = total_liabilities.freq.FY
-                retained_earnings = retained_earnings.freq.FY
+                current_assets = current_assets.freq.FY(exchange=self._exchange)
+                current_liabilities = current_liabilities.freq.FY(exchange=self._exchange)
+                total_assets = total_assets.freq.FY(exchange=self._exchange)
+                ebit = ebit.freq.FY(exchange=self._exchange)
+                diluted_shares = diluted_shares.freq.FY(exchange=self._exchange)
+                revenue = revenue.freq.FY(exchange=self._exchange)
+                total_liabilities = total_liabilities.freq.FY(exchange=self._exchange)
+                retained_earnings = retained_earnings.freq.FY(exchange=self._exchange)
                 # Stock price doesn't get frequency transformation
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
@@ -442,7 +444,7 @@ class Ratios:
             current_assets, current_liabilities, total_assets,
             ebit, diluted_shares, revenue, total_liabilities, retained_earnings, stock_price
         )
-        
+
         # Name based on frequency used
         ratio_name = 'Altman Z-Score'
         if freq == FrequencyType.TTM:
@@ -451,7 +453,7 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
@@ -620,14 +622,14 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                net_income = net_income.freq.FY
-                operating_cash_flow = operating_cash_flow.freq.FY
-                total_assets = total_assets.freq.FY
-                total_debt = total_debt.freq.FY
-                current_assets = current_assets.freq.FY
-                current_liabilities = current_liabilities.freq.FY
-                revenue = revenue.freq.FY
-                cogs = cogs.freq.FY
+                net_income = net_income.freq.FY(exchange=self._exchange)
+                operating_cash_flow = operating_cash_flow.freq.FY(exchange=self._exchange)
+                total_assets = total_assets.freq.FY(exchange=self._exchange)
+                total_debt = total_debt.freq.FY(exchange=self._exchange)
+                current_assets = current_assets.freq.FY(exchange=self._exchange)
+                current_liabilities = current_liabilities.freq.FY(exchange=self._exchange)
+                revenue = revenue.freq.FY(exchange=self._exchange)
+                cogs = cogs.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 net_income = net_income.freq.TTM
@@ -710,7 +712,7 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                revenue = revenue.freq.FY
+                revenue = revenue.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 revenue = revenue.freq.TTM
@@ -736,7 +738,7 @@ class Ratios:
 
         # Process and return the results
         return self._process_ratio_result(result_df, growth, lag, rounding)
-    
+
     @handle_errors
     def get_eps_growth_ratio(
             self,
@@ -769,7 +771,7 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                eps = eps.freq.FY
+                eps = eps.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 eps = eps.freq.TTM
@@ -835,8 +837,8 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                net_income = net_income.freq.FY
-                shareholders_equity = shareholders_equity.freq.FY
+                net_income = net_income.freq.FY(exchange=self._exchange)
+                shareholders_equity = shareholders_equity.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 net_income = net_income.freq.TTM
@@ -849,7 +851,7 @@ class Ratios:
             shareholders_equity = shareholders_equity.rolling(trailing).mean()
 
         result = earnings_model.get_return_on_equity(net_income, shareholders_equity)
-        
+
         # Name based on frequency used
         ratio_name = 'Return on Equity'
         if freq == FrequencyType.TTM:
@@ -858,7 +860,7 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
@@ -894,7 +896,7 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                fcf = fcf.freq.FY
+                fcf = fcf.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 fcf = fcf.freq.TTM
@@ -904,7 +906,7 @@ class Ratios:
             fcf = fcf.rolling(trailing).mean()
 
         result = earnings_model.get_free_cash_flow_growth(fcf)
-        
+
         # Name based on frequency used
         ratio_name = 'FCF Growth YoY'
         if freq == FrequencyType.TTM:
@@ -913,10 +915,10 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
-        
+
     @handle_errors
     def get_revenue_consecutive_growth_ratio(
             self,
@@ -949,7 +951,7 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                revenue = revenue.freq.FY
+                revenue = revenue.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 revenue = revenue.freq.TTM
@@ -959,7 +961,7 @@ class Ratios:
             revenue = revenue.rolling(trailing).mean()
 
         result = earnings_model.get_revenue_consecutive_growth(revenue)
-        
+
         # Name based on frequency used
         ratio_name = 'Revenue Consecutive Growth Periods'
         if freq == FrequencyType.TTM:
@@ -968,10 +970,10 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
-        
+
     @handle_errors
     def get_eps_consecutive_growth_ratio(
             self,
@@ -1004,7 +1006,7 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                eps = eps.freq.FY
+                eps = eps.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 eps = eps.freq.TTM
@@ -1014,7 +1016,7 @@ class Ratios:
             eps = eps.rolling(trailing).mean()
 
         result = earnings_model.get_eps_consecutive_growth(eps)
-        
+
         # Name based on frequency used
         ratio_name = 'EPS Consecutive Growth Periods'
         if freq == FrequencyType.TTM:
@@ -1023,10 +1025,10 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
-    
+
     @handle_errors
     def get_average_revenue_growth_ratio(
             self,
@@ -1059,7 +1061,7 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                revenue = revenue.freq.FY
+                revenue = revenue.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 revenue = revenue.freq.TTM
@@ -1069,7 +1071,7 @@ class Ratios:
             revenue = revenue.rolling(trailing).mean()
 
         result = earnings_model.get_average_revenue_growth(revenue)
-        
+
         # Name based on frequency used
         ratio_name = 'Average Revenue Growth (20p)'
         if freq == FrequencyType.TTM:
@@ -1078,10 +1080,10 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
-    
+
     @handle_errors
     def get_average_gross_margin_ratio(
             self,
@@ -1114,7 +1116,7 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                gross_margin = gross_margin.freq.FY
+                gross_margin = gross_margin.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 gross_margin = gross_margin.freq.TTM
@@ -1124,7 +1126,7 @@ class Ratios:
             gross_margin = gross_margin.rolling(trailing).mean()
 
         result = earnings_model.get_average_gross_margin(gross_margin)
-        
+
         # Name based on frequency used
         ratio_name = 'Average Gross Margin (20p)'
         if freq == FrequencyType.TTM:
@@ -1133,10 +1135,10 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
-    
+
     @handle_errors
     def get_average_gross_margin_growth_ratio(
             self,
@@ -1169,7 +1171,7 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                gross_margin = gross_margin.freq.FY
+                gross_margin = gross_margin.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 gross_margin = gross_margin.freq.TTM
@@ -1179,7 +1181,7 @@ class Ratios:
             gross_margin = gross_margin.rolling(trailing).mean()
 
         result = earnings_model.get_average_gross_margin_growth(gross_margin)
-        
+
         # Name based on frequency used
         ratio_name = 'Average Gross Margin Growth (20p)'
         if freq == FrequencyType.TTM:
@@ -1188,10 +1190,10 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
-    
+
     @handle_errors
     def get_average_ebitda_margin_ratio(
             self,
@@ -1225,8 +1227,8 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                ebitda = ebitda.freq.FY
-                revenue = revenue.freq.FY
+                ebitda = ebitda.freq.FY(exchange=self._exchange)
+                revenue = revenue.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 ebitda = ebitda.freq.TTM
@@ -1238,7 +1240,7 @@ class Ratios:
             revenue = revenue.rolling(trailing).mean()
 
         result = earnings_model.get_average_ebitda_margin(ebitda, revenue)
-        
+
         # Name based on frequency used
         ratio_name = 'Average EBITDA Margin (20p)'
         if freq == FrequencyType.TTM:
@@ -1247,10 +1249,10 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
-    
+
     @handle_errors
     def get_average_ebitda_margin_growth_ratio(
             self,
@@ -1284,8 +1286,8 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                ebitda = ebitda.freq.FY
-                revenue = revenue.freq.FY
+                ebitda = ebitda.freq.FY(exchange=self._exchange)
+                revenue = revenue.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 ebitda = ebitda.freq.TTM
@@ -1297,7 +1299,7 @@ class Ratios:
             revenue = revenue.rolling(trailing).mean()
 
         result = earnings_model.get_average_ebitda_margin_growth(ebitda, revenue)
-        
+
         # Name based on frequency used
         ratio_name = 'Average EBITDA Margin Growth (20p)'
         if freq == FrequencyType.TTM:
@@ -1306,10 +1308,10 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
-    
+
     @handle_errors
     def get_average_eps_growth_ratio(
             self,
@@ -1342,7 +1344,7 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                eps = eps.freq.FY
+                eps = eps.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 eps = eps.freq.TTM
@@ -1352,7 +1354,7 @@ class Ratios:
             eps = eps.rolling(trailing).mean()
 
         result = earnings_model.get_average_eps_growth(eps)
-        
+
         # Name based on frequency used
         ratio_name = 'Average EPS Growth (20p)'
         if freq == FrequencyType.TTM:
@@ -1361,12 +1363,12 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
-    
+
     # Growth Comparison Metrics
-    
+
     @handle_errors
     def get_revenue_growth_vs_average_growth_ratio(
             self,
@@ -1399,7 +1401,7 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                revenue = revenue.freq.FY
+                revenue = revenue.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 revenue = revenue.freq.TTM
@@ -1409,7 +1411,7 @@ class Ratios:
             revenue = revenue.rolling(trailing).mean()
 
         result = earnings_model.get_revenue_growth_vs_average_growth(revenue)
-        
+
         # Name based on frequency used
         ratio_name = 'Revenue Growth vs Avg Growth'
         if freq == FrequencyType.TTM:
@@ -1418,10 +1420,10 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
-    
+
     @handle_errors
     def get_eps_growth_vs_average_growth_ratio(
             self,
@@ -1454,7 +1456,7 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                eps = eps.freq.FY
+                eps = eps.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 eps = eps.freq.TTM
@@ -1464,7 +1466,7 @@ class Ratios:
             eps = eps.rolling(trailing).mean()
 
         result = earnings_model.get_eps_growth_vs_average_growth(eps)
-        
+
         # Name based on frequency used
         ratio_name = 'EPS Growth vs Avg Growth'
         if freq == FrequencyType.TTM:
@@ -1473,10 +1475,10 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
-    
+
     @handle_errors
     def get_ebitda_margin_vs_average_ratio(
             self,
@@ -1510,8 +1512,8 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                ebitda = ebitda.freq.FY
-                revenue = revenue.freq.FY
+                ebitda = ebitda.freq.FY(exchange=self._exchange)
+                revenue = revenue.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 ebitda = ebitda.freq.TTM
@@ -1523,7 +1525,7 @@ class Ratios:
             revenue = revenue.rolling(trailing).mean()
 
         result = earnings_model.get_ebitda_margin_vs_average(ebitda, revenue)
-        
+
         # Name based on frequency used
         ratio_name = 'EBITDA Margin vs Avg EBITDA'
         if freq == FrequencyType.TTM:
@@ -1532,10 +1534,10 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
-    
+
     @handle_errors
     def get_gross_margin_vs_average_ratio(
             self,
@@ -1569,8 +1571,8 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                gross_profit = gross_profit.freq.FY
-                revenue = revenue.freq.FY
+                gross_profit = gross_profit.freq.FY(exchange=self._exchange)
+                revenue = revenue.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 gross_profit = gross_profit.freq.TTM
@@ -1582,7 +1584,7 @@ class Ratios:
             revenue = revenue.rolling(trailing).mean()
 
         result = earnings_model.get_gross_margin_vs_average(gross_profit, revenue)
-        
+
         # Name based on frequency used
         ratio_name = 'Gross Margin Growth vs Avg Growth'
         if freq == FrequencyType.TTM:
@@ -1591,12 +1593,12 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
-    
+
     # Return Metrics
-    
+
     @handle_errors
     def get_roe_vs_average_roe_ratio(
             self,
@@ -1636,8 +1638,8 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                net_income = net_income.freq.FY
-                shareholders_equity = shareholders_equity.freq.FY
+                net_income = net_income.freq.FY(exchange=self._exchange)
+                shareholders_equity = shareholders_equity.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 net_income = net_income.freq.TTM
@@ -1648,7 +1650,7 @@ class Ratios:
             net_income = net_income.rolling(trailing).mean()
 
         result = earnings_model.get_roe_vs_average_roe(net_income, shareholders_equity)
-        
+
         # Name based on frequency used
         ratio_name = 'ROE vs Average ROE'
         if freq == FrequencyType.TTM:
@@ -1657,10 +1659,10 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
-    
+
     @handle_errors
     def get_return_on_assets_ratio(
             self,
@@ -1695,8 +1697,8 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                net_income = net_income.freq.FY
-                total_assets = total_assets.freq.FY
+                net_income = net_income.freq.FY(exchange=self._exchange)
+                total_assets = total_assets.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 net_income = net_income.freq.TTM
@@ -1708,7 +1710,7 @@ class Ratios:
             total_assets = total_assets.rolling(trailing).mean()
 
         result = earnings_model.get_return_on_assets(net_income, total_assets)
-        
+
         # Name based on frequency used
         ratio_name = 'Return on Assets'
         if freq == FrequencyType.TTM:
@@ -1717,10 +1719,10 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
-    
+
     @handle_errors
     def get_roa_vs_average_roa_ratio(
             self,
@@ -1755,8 +1757,8 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                net_income = net_income.freq.FY
-                total_assets = total_assets.freq.FY
+                net_income = net_income.freq.FY(exchange=self._exchange)
+                total_assets = total_assets.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 net_income = net_income.freq.TTM
@@ -1768,7 +1770,7 @@ class Ratios:
             total_assets = total_assets.rolling(trailing).mean()
 
         result = earnings_model.get_roa_vs_average_roa(net_income, total_assets)
-        
+
         # Name based on frequency used
         ratio_name = 'ROA vs Average ROA'
         if freq == FrequencyType.TTM:
@@ -1777,12 +1779,12 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
-    
+
     # Estimate Comparison Metrics
-    
+
     @handle_errors
     def get_revenue_vs_estimate_ratio(
             self,
@@ -1817,8 +1819,8 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                revenue = revenue.freq.FY
-                revenue_estimate = revenue_estimate.freq.FY
+                revenue = revenue.freq.FY(exchange=self._exchange)
+                revenue_estimate = revenue_estimate.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 revenue = revenue.freq.TTM
@@ -1830,7 +1832,7 @@ class Ratios:
             revenue_estimate = revenue_estimate.rolling(trailing).mean()
 
         result = earnings_model.get_revenue_vs_estimate(revenue, revenue_estimate)
-        
+
         # Name based on frequency used
         ratio_name = 'Revenue vs Estimate'
         if freq == FrequencyType.TTM:
@@ -1839,10 +1841,10 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
-    
+
     @handle_errors
     def get_shares_outstanding_vs_estimate_ratio(
             self,
@@ -1882,10 +1884,10 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                net_income = net_income.freq.FY
-                eps = eps.freq.FY
-                net_income_estimate = net_income_estimate.freq.FY
-                eps_estimate = eps_estimate.freq.FY
+                net_income = net_income.freq.FY(exchange=self._exchange)
+                eps = eps.freq.FY(exchange=self._exchange)
+                net_income_estimate = net_income_estimate.freq.FY(exchange=self._exchange)
+                eps_estimate = eps_estimate.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 net_income = net_income.freq.TTM
@@ -1903,7 +1905,7 @@ class Ratios:
         result = earnings_model.get_shares_outstanding_vs_estimate(
             net_income, eps, net_income_estimate, eps_estimate
         )
-        
+
         # Name based on frequency used
         ratio_name = 'Shares Outstanding vs Estimate'
         if freq == FrequencyType.TTM:
@@ -1912,12 +1914,12 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
-    
+
     # Cash Flow Analysis
-    
+
     @handle_errors
     def get_free_cash_flow_average_growth_ratio(
             self,
@@ -1950,7 +1952,7 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                fcf = fcf.freq.FY
+                fcf = fcf.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 fcf = fcf.freq.TTM
@@ -1960,7 +1962,7 @@ class Ratios:
             fcf = fcf.rolling(trailing).mean()
 
         result = earnings_model.get_free_cash_flow_average_growth(fcf)
-        
+
         # Name based on frequency used
         ratio_name = 'Average FCF Growth (5yrs)'
         if freq == FrequencyType.TTM:
@@ -1969,10 +1971,10 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
-    
+
     ################ Quality Model Ratios ###############
 
     @handle_errors
@@ -2053,10 +2055,10 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                net_income = net_income.freq.FY
-                total_assets = total_assets.freq.FY
-                total_liabilities = total_liabilities.freq.FY
-                dividend_paid = dividend_paid.freq.FY
+                net_income = net_income.freq.FY(exchange=self._exchange)
+                total_assets = total_assets.freq.FY(exchange=self._exchange)
+                total_liabilities = total_liabilities.freq.FY(exchange=self._exchange)
+                dividend_paid = dividend_paid.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 net_income = net_income.freq.TTM
@@ -2073,7 +2075,7 @@ class Ratios:
 
         result = quality_model.get_intrinsic_compounding_rate(net_income, total_assets, total_liabilities,
                                                               dividend_paid)
-                                                              
+
         # Name based on frequency used
         ratio_name = 'Annual Intrinsic Compounding Rate'
         if freq == FrequencyType.TTM:
@@ -2082,7 +2084,7 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
@@ -2119,7 +2121,7 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                net_profit = net_profit.freq.FY
+                net_profit = net_profit.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 net_profit = net_profit.freq.TTM
@@ -2129,7 +2131,7 @@ class Ratios:
             net_profit = net_profit.rolling(trailing).mean()
 
         result = quality_model.get_dips_in_profit_over_10yrs(net_profit)
-        
+
         # Name based on frequency used
         ratio_name = 'Profit Dip Last 10Y'
         if freq == FrequencyType.TTM:
@@ -2138,7 +2140,7 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
@@ -2181,8 +2183,8 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                invested_capital = invested_capital.freq.FY
-                ebit = ebit.freq.FY
+                invested_capital = invested_capital.freq.FY(exchange=self._exchange)
+                ebit = ebit.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 invested_capital = invested_capital.freq.TTM
@@ -2235,7 +2237,7 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                cfo = cfo.freq.FY
+                cfo = cfo.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 cfo = cfo.freq.TTM
@@ -2244,7 +2246,7 @@ class Ratios:
             cfo = cfo.T.rolling(trailing).mean().T
 
         result = quality_model.get_cfo_band(cfo)
-        
+
         # Name based on frequency used
         ratio_name = 'CFO Band'
         if freq == FrequencyType.TTM:
@@ -2253,7 +2255,7 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
@@ -2280,12 +2282,12 @@ class Ratios:
             pd.DataFrame: FCF dip ratio values.
         """
         fcf = self._financial_data['Free Cash Flow']
-        
+
         # Apply frequency transformation if requested
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                fcf = fcf.freq.FY
+                fcf = fcf.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 fcf = fcf.freq.TTM
@@ -2294,7 +2296,7 @@ class Ratios:
             fcf = fcf.T.rolling(trailing).mean().T
 
         result = quality_model.get_negative_dips_in_fcf_over_10yrs(fcf)
-        
+
         # Name based on frequency used
         ratio_name = 'FCF Dip Last 10Y'
         if freq == FrequencyType.TTM:
@@ -2303,7 +2305,7 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
@@ -2330,12 +2332,12 @@ class Ratios:
             pd.DataFrame: Negative FCF ratio values.
         """
         fcf = self._financial_data['Free Cash Flow']
-        
+
         # Apply frequency transformation if requested
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                fcf = fcf.freq.FY
+                fcf = fcf.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 fcf = fcf.freq.TTM
@@ -2344,7 +2346,7 @@ class Ratios:
             fcf = fcf.T.rolling(trailing).mean().T
 
         result = quality_model.get_negative_fcf_years(fcf)
-        
+
         # Name based on frequency used
         ratio_name = 'Negative FCF Last 10Y'
         if freq == FrequencyType.TTM:
@@ -2353,7 +2355,7 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
@@ -2381,24 +2383,24 @@ class Ratios:
         """
         cfo = self._financial_data['Operating Cash Flow']
         net_profit = self._financial_data['Net Income']
-        
+
         # Apply frequency transformation if requested
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                cfo = cfo.freq.FY
-                net_profit = net_profit.freq.FY
+                cfo = cfo.freq.FY(exchange=self._exchange)
+                net_profit = net_profit.freq.FY(exchange=self._exchange)
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
                 cfo = cfo.freq.TTM
                 net_profit = net_profit.freq.TTM
-                
+
         if trailing:
             cfo = cfo.T.rolling(trailing).mean().T
             net_profit = net_profit.T.rolling(trailing).mean().T
 
         result = quality_model.get_cfo_to_net_profit(cfo, net_profit)
-        
+
         # Name based on frequency used
         ratio_name = 'CFO to Profit'
         if freq == FrequencyType.TTM:
@@ -2407,7 +2409,7 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
@@ -2466,7 +2468,7 @@ class Ratios:
 
         # Process and return the results
         return self._process_ratio_result(self._valuation_ratios, growth, lag, rounding)
-    
+
     @handle_errors
     def get_steady_state_value_ratio(
             self,
@@ -2505,10 +2507,10 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                price = price.freq.FY
-                wacc = wacc.freq.FY
-                ebit = ebit.freq.FY
-                tax_rate = tax_rate.freq.FY
+                price = price.freq.FY(exchange=self._exchange)
+                wacc = wacc.freq.FY(exchange=self._exchange)
+                ebit = ebit.freq.FY(exchange=self._exchange)
+                tax_rate = tax_rate.freq.FY(exchange=self._exchange)
                 # Current price typically doesn't get frequency treatment
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
@@ -2527,7 +2529,7 @@ class Ratios:
 
 
         result = valuation_model.get_steady_state_value(price, wacc, shares_outstanding, ebit, tax_rate)
-        
+
         # Name based on frequency used
         ratio_name = 'Steady State Value'
         if freq == FrequencyType.TTM:
@@ -2536,7 +2538,7 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
@@ -2581,11 +2583,11 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                net_income = net_income.freq.FY
-                total_assets = total_assets.freq.FY
-                total_liabilities = total_liabilities.freq.FY
-                eps = eps.freq.FY
-                dividends_paid = dividends_paid.freq.FY
+                net_income = net_income.freq.FY(exchange=self._exchange)
+                total_assets = total_assets.freq.FY(exchange=self._exchange)
+                total_liabilities = total_liabilities.freq.FY(exchange=self._exchange)
+                eps = eps.freq.FY(exchange=self._exchange)
+                dividends_paid = dividends_paid.freq.FY(exchange=self._exchange)
                 # Stock price typically doesn't get frequency treatment
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
@@ -2607,7 +2609,7 @@ class Ratios:
         result = valuation_model.get_fair_value_vs_market_price(
             net_income, total_assets, total_liabilities, eps, current_price, dividends_paid
         )
-        
+
         # Name based on frequency used
         ratio_name = 'Fair Value vs Market Price'
         if freq == FrequencyType.TTM:
@@ -2616,7 +2618,7 @@ class Ratios:
             ratio_name = 'FY ' + ratio_name
         elif self._quarterly:
             ratio_name = 'QoQ ' + ratio_name
-            
+
         result_df = result.to_frame(name=ratio_name)
         return self._process_ratio_result(result_df, growth, lag, rounding)
 
@@ -2663,7 +2665,7 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                revenue = revenue.freq.FY
+                revenue = revenue.freq.FY(exchange=self._exchange)
                 # Stock price typically doesn't get frequency treatment
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
@@ -2728,7 +2730,7 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                eps = eps.freq.FY
+                eps = eps.freq.FY(exchange=self._exchange)
                 # Stock price typically doesn't get frequency treatment
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
@@ -2797,7 +2799,7 @@ class Ratios:
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                cfo = cfo.freq.FY
+                cfo = cfo.freq.FY(exchange=self._exchange)
                 # Stock price typically doesn't get frequency treatment
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
@@ -2862,12 +2864,12 @@ class Ratios:
         fcf = self._financial_data['Free Cash Flow']
         shares_outstanding = self._financial_data['Shares Outstanding']
         price = self._financial_data['Stock Price']
-        
+
         # Apply frequency transformation if requested
         if freq is not None:
             if freq == FrequencyType.FY:
                 # Apply fiscal year calculations
-                fcf = fcf.freq.FY
+                fcf = fcf.freq.FY(exchange=self._exchange)
                 # Stock price typically doesn't get frequency treatment
             elif freq == FrequencyType.TTM:
                 # Apply trailing twelve months calculations
